@@ -1,0 +1,1635 @@
+<!DOCTYPE html>
+<!--
+  RECIST 1.1 疗效评价系统（单文件版）
+  Copyright (C) 2026  <请替换为你的姓名或 GitHub ID>
+
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RECIST 1.1 疗效评价 · 患者数据库</title>
+<meta name="description" content="单文件、纯前端、零依赖的 RECIST 1.1 肿瘤疗效评价系统：录入基线与随访靶病灶径线，自动判定 CR / PR / SD / PD，计算 ORR 与 DCR，并生成瀑布图、蜘蛛图、泳道图。数据仅保存在浏览器本地 IndexedDB。">
+<meta name="keywords" content="RECIST, RECIST 1.1, 疗效评价, ORR, DCR, 瀑布图, 蜘蛛图, 泳道图, 临床试验, 肿瘤, waterfall plot, spider plot, swimmer plot">
+<meta name="author" content="RECIST 1.1 疗效评价系统">
+<meta name="license" content="GPL-3.0-or-later">
+<meta property="og:type" content="website">
+<meta property="og:title" content="RECIST 1.1 疗效评价系统">
+<meta property="og:description" content="单文件、纯前端、零依赖。录入基线与随访径线，自动判定 CR/PR/SD/PD，计算 ORR 与 DCR，生成瀑布图、蜘蛛图与泳道图。">
+<meta property="og:locale" content="zh_CN">
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2064%2064'%3E%3Crect%20width='64'%20height='64'%20rx='14'%20fill='%234E7B92'/%3E%3Ctext%20x='32'%20y='43'%20font-size='30'%20font-family='sans-serif'%20font-weight='700'%20fill='white'%20text-anchor='middle'%3ER%3C/text%3E%3C/svg%3E">
+<style>
+  :root {
+    --bg: #f4f7fa; --card: #ffffff; --ink: #1f2d3d; --muted: #6b7a90;
+    --line: #e3e9f1; --accent: #2563eb;
+    --cr: #16a34a; --pr: #2563eb; --sd: #6b7280; --pd: #dc2626;
+    --ne: #d97706; --ncrp: #ea580c;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+    background: var(--bg); color: var(--ink); line-height: 1.6; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 24px 16px 60px; }
+  header h1 { font-size: 22px; margin: 0 0 4px; }
+  header p { margin: 0 0 20px; color: var(--muted); font-size: 13px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px; margin-bottom: 16px; }
+  h2 { font-size: 16px; margin: 0 0 12px; }
+  h2 .tag { display: inline-block; font-size: 11px; font-weight: normal; color: var(--muted); margin-left: 8px; }
+  h3 { font-size: 14px; margin: 18px 0 8px; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); font-size: 14px; }
+  th { color: var(--muted); font-weight: 500; font-size: 13px; }
+  input[type=number], input[type=text], input[type=date], textarea {
+    width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px;
+    font-size: 14px; background: #fafbfd; font-family: inherit;
+  }
+  input:focus, textarea:focus { outline: 2px solid rgba(37,99,235,.35); border-color: var(--accent); }
+  .num { width: 110px; }
+  .row-lesion { display: grid; grid-template-columns: 1.6fr 1fr 40px; gap: 8px; align-items: center; }
+  .btn { display: inline-block; cursor: pointer; border: none; border-radius: 8px;
+    padding: 9px 16px; font-size: 14px; font-weight: 600; }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: #1d4ed8; }
+  .btn-ghost { background: #eef2f8; color: var(--accent); padding: 6px 12px; font-size: 13px; }
+  .btn-del { background: #fde8e8; color: var(--pd); padding: 6px 10px; font-size: 12px; border-radius: 8px; }
+  .btn-del:hover { background: #fbd5d5; }
+  .btn-sm { padding: 5px 10px; font-size: 12px; }
+  .radio-group { display: flex; flex-wrap: wrap; gap: 8px; }
+  .radio-group label { border: 1px solid var(--line); border-radius: 8px; padding: 7px 14px;
+    cursor: pointer; font-size: 13px; background: #fafbfd; user-select: none; }
+  .radio-group input { display: none; }
+  .radio-group label.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 8px; }
+  .opt { margin-top: 12px; font-size: 14px; }
+  .opt input[type=checkbox] { width: auto; margin-right: 8px; }
+  .badge { display: inline-block; font-size: 13px; font-weight: 700; padding: 3px 12px;
+    border-radius: 8px; color: #fff; }
+  .badge-lg { font-size: 22px; font-weight: 800; padding: 8px 24px; border-radius: 12px; }
+  .b-CR { background: var(--cr); } .b-PR { background: var(--pr); } .b-SD { background: var(--sd); }
+  .b-PD { background: var(--pd); } .b-NE { background: var(--ne); } .b-NCRP { background: var(--ncrp); }
+  .grid2 { display: grid; grid-template-columns: 340px 1fr; gap: 16px; align-items: start; }
+  .left-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+  @media (max-width: 860px) { .grid2 { grid-template-columns: 1fr; } }
+  .plist { list-style: none; margin: 0; padding: 0 4px 0 0; max-height: 320px; overflow-y: auto; }
+  .plist li { padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px;
+    margin-bottom: 8px; cursor: pointer; background: #fafbfd; }
+  .plist li:hover { border-color: var(--accent); }
+  .plist li.cur { border-color: var(--accent); background: #eef4ff; }
+  .plist .nm { font-weight: 700; font-size: 14px; }
+  .plist .sub { font-size: 12px; color: var(--muted); }
+  .visit-card { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; }
+  .visit-head { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .visit-head .tt { font-weight: 700; }
+  .visit-detail { margin-top: 8px; font-size: 13px; color: var(--muted); }
+  .visit-detail li { margin-bottom: 4px; }
+  .pill { background: #eef2f8; border-radius: 8px; padding: 4px 10px; font-size: 13px; }
+  .pill b { color: var(--accent); }
+  .chart-title { font-size: 14px; font-weight: 700; margin: 14px 0 6px; }
+  .two-charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 18px; align-items: start; }
+  .legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 12px; color: var(--muted); margin: 4px 0; }
+  .legend .sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 4px; vertical-align: -2px; }
+  .tl-strip { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+  .tl-item { border-radius: 8px; padding: 6px 10px; color: #fff; font-size: 12px; font-weight: 600; text-align: center; min-width: 64px; }
+  .tl-item .d { font-size: 10px; font-weight: normal; opacity: .85; }
+  .bar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 13px; }
+  .bar-track { flex: 1; background: #eef2f8; border-radius: 6px; height: 22px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 6px; color: #fff; font-size: 12px; font-weight: 700;
+    display: flex; align-items: center; padding-left: 8px; min-width: 2px; }
+  .err { color: var(--pd); font-size: 13px; margin-top: 8px; display: none; }
+  details { margin-top: 14px; }
+  summary { cursor: pointer; font-size: 14px; color: var(--accent); font-weight: 600; }
+  details ol { font-size: 13px; color: var(--muted); padding-left: 20px; }
+  .footnote { font-size: 12px; color: var(--muted); margin-top: 10px; }
+  select { padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 14px; background: #fafbfd; }
+  .info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin-bottom: 12px; }
+  .info-grid .k { font-size: 12px; color: var(--muted); }
+  .info-grid .v { font-size: 15px; font-weight: 700; }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .tabs { display: flex; gap: 6px; margin-bottom: 16px; border-bottom: 2px solid var(--line); }
+  .tab { border: none; background: none; cursor: pointer; padding: 10px 18px; font-size: 14px;
+    font-weight: 600; color: var(--muted); border-bottom: 3px solid transparent; margin-bottom: -2px; }
+  .tab:hover { color: var(--accent); }
+  .tab.on { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab-panel { display: none; }
+  .tab-panel.on { display: block; }
+  .modal-overlay { position: fixed; inset: 0; background: rgba(15,23,42,.5);
+    display: flex; align-items: center; justify-content: center; z-index: 1000; }
+  .modal { background: #fff; border-radius: 12px; padding: 24px; max-width: 440px; width: 92%;
+    box-shadow: 0 10px 40px rgba(0,0,0,.25); }
+  .modal h3 { margin: 0 0 12px; font-size: 17px; }
+  .modal .msg { font-size: 14px; color: var(--muted); margin: 0 0 8px; }
+  .modal .msg b.warn { color: var(--pd); }
+  .modal .countdown-hint { font-size: 12px; color: var(--muted); margin-top: 10px; }
+  .tbl-wrap { overflow-x: auto; }
+  .visit-table { min-width: 900px; }
+  .visit-table th, .visit-table td { white-space: nowrap; }
+  .visit-table td.les-cell, .visit-table th.les-cell { white-space: normal; min-width: 180px; max-width: 320px; }
+  .visit-table .num-c { text-align: center; }
+  .visit-table th.num-c { text-align: center; }
+  .visit-table .op-c { white-space: nowrap; }
+  .visit-table tr.base-row { background: #f0f5ff; }
+  .visit-table tr.base-row td { font-weight: 600; }
+  .visit-table tr.base-row td.base-tag { color: var(--accent); }
+  .visit-table tbody tr:hover { background: #fafbfd; }
+  .visit-table tbody tr.base-row:hover { background: #eaf1ff; }
+  /* ===== 队列总览入口按钮（独立卡片） ===== */
+  .cohort-entry { padding: 16px 18px; transition: box-shadow .15s, border-color .15s; }
+  .cohort-entry.on { border-color: #bfdbfe; box-shadow: 0 0 0 3px rgba(37, 99, 235, .08); }
+  .cohort-entry h2 { margin-bottom: 6px; }
+  .ce-desc { margin: 0 0 12px; font-size: 12px; color: var(--muted); line-height: 1.6; }
+  .cohort-btn { width: 100%; display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+    margin: 0; padding: 11px 14px; border-radius: 10px; cursor: pointer; text-align: left;
+    border: 1px solid #c7dbff; background: linear-gradient(135deg, #2563eb, #3b82f6); color: #fff;
+    box-shadow: 0 4px 12px rgba(37, 99, 235, .22); transition: transform .12s, box-shadow .12s; }
+  .cohort-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(37, 99, 235, .32); }
+  .cohort-btn.on { background: linear-gradient(135deg, #1e40af, #2563eb); outline: 2px solid #bfdbfe; }
+  .cohort-btn .cb-t { font-size: 15px; font-weight: 700; letter-spacing: .02em; }
+  .cohort-btn .cb-s { font-size: 11px; opacity: .88; }
+
+  /* ===== 右侧队列总览面板 ===== */
+  .cohort-head { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-start;
+    justify-content: space-between; padding: 14px 16px; border-radius: 12px; margin-bottom: 14px;
+    background: linear-gradient(135deg, #eaf2ff, #f7fbff); border: 1px solid #d7e3f8; }
+  .cohort-head-main { flex: 1 1 320px; min-width: 240px; }
+  .cohort-kicker { display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: .14em;
+    color: #1d4ed8; background: #dbeafe; padding: 2px 8px; border-radius: 999px; margin-bottom: 6px; }
+  .cohort-head h2 { font-size: 18px; margin: 0 0 6px; }
+  .cohort-desc { margin: 0; font-size: 12.5px; color: #475569; line-height: 1.65; }
+  .cohort-desc b { color: var(--ink); }
+  .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(126px, 1fr)); gap: 8px; }
+  .kpi { background: #fff; border: 1px solid #dbe6f7; border-radius: 12px; padding: 9px 12px;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, .04); }
+  .kpi .k-label { font-size: 11.5px; color: var(--muted); white-space: nowrap; }
+  .kpi .k-val { font-size: 22px; font-weight: 700; line-height: 1.3; font-variant-numeric: tabular-nums; }
+  .kpi .k-sub { font-size: 11px; color: var(--muted); }
+  .kpi.k-orr .k-val { color: #2563eb; }
+  .kpi.k-dcr .k-val { color: #16a34a; }
+  .kpi.k-cr .k-val { color: #0f766e; }
+  .table-scroll { overflow-x: auto; }
+  .table-scroll table { min-width: 520px; }
+  .cohort-sec { border-top: 1px solid var(--line); margin-top: 18px; padding-top: 14px; }
+  /* 筛选条 */
+  .filter-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin: 0 0 14px;
+    padding: 9px 12px; border: 1px dashed #C7DBE4; border-radius: 10px; background: #F7FBFC; }
+  .filter-bar label { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+  .filter-bar select { padding: 4px 8px; font-size: 12px; border-radius: 8px; max-width: 190px; background: #fff; }
+  .filter-note { font-size: 12px; color: var(--muted); margin-left: auto; }
+  .grp-input { font-size: 13px; font-weight: 600; padding: 4px 8px; }
+  .grp-tag { display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 999px;
+    background: #DFF0F5; color: #4E7B92; border: 1px solid #AFD8C2; }
+  .sw-lane { cursor: pointer; }
+  .sw-lane:hover rect { opacity: .75; }
+  /* 图表着色切换 */
+  .chart-tools { display: flex; align-items: center; gap: 8px; margin: 2px 0 8px; }
+  .chart-tools .ct-label { font-size: 12px; color: var(--muted); }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; background: #fff; }
+  .seg button { border: none; background: none; padding: 4px 11px; font-size: 12px; color: var(--muted);
+    cursor: pointer; font-family: inherit; }
+  .seg button + button { border-left: 1px solid var(--line); }
+  .seg button:hover { background: #F7FBFC; }
+  .seg button.on { background: #E8F2F6; color: var(--accent); font-weight: 700; }
+  /* 淋巴结标记 */
+  .node-cell { white-space: nowrap; }
+  .node-chk { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); cursor: pointer; }
+  .node-chk input { width: auto; margin: 0; }
+  .l-node-tag { display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 999px;
+    background: #E8F2F6; color: #4E7B92; border: 1px solid #C7DBE4; white-space: nowrap; }
+  .clink { color: var(--accent); cursor: pointer; border-bottom: 1px dashed rgba(37, 99, 235, .45); }
+  .clink:hover { border-bottom-style: solid; }
+  .wf-bar { cursor: pointer; }
+  .wf-bar rect { transition: opacity .15s; }
+  .wf-bar:hover rect { opacity: .65; stroke: #1f2d3d; stroke-width: 1; }
+  .sp-series { transition: opacity .15s; }
+  .sp-lgd { cursor: pointer; transition: opacity .15s; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>RECIST 1.1 疗效评价 · 患者数据库</h1>
+    <p>按患者记录基线与每次随访的靶病灶径线、非靶病灶评估及新发病灶，自动计算每个时间点的反应与<b>最佳总缓解（BOR）</b>，并生成图表。每位患者可填写<b>肿瘤类型</b>与<b>分组</b>；点击左侧 <b>「队列总览」</b> 卡片中的按钮，可在右侧查看逐例最佳总缓解、ORR / DCR、瀑布图、蜘蛛图与泳道图，并支持按肿瘤类型 / 分组筛选。数据保存在本浏览器（IndexedDB），可导出 JSON / CSV 备份。</p>
+  </header>
+
+  <!-- ============ 左列：队列总览入口 + 患者列表 ============ -->
+  <div class="grid2">
+    <div class="left-col">
+      <!-- 队列总览入口卡：点击按钮后在右侧面板展示全队列汇总 -->
+      <div class="card cohort-entry">
+        <h2>队列总览<span class="tag">全队列疗效汇总</span></h2>
+        <p class="ce-desc">汇总逐例最佳总缓解（BOR）与 ORR / DCR，绘制瀑布图、蜘蛛图（靶病灶直径和变化）与泳道图，可按肿瘤类型与分组筛选。</p>
+        <button class="cohort-btn" id="cohortBtn" onclick="showCohort()">
+          <span class="cb-t">▦ 打开队列总览</span>
+          <span class="cb-s" id="cohortBtnSub">ORR / DCR · 最佳总缓解 · 瀑布图 · 蜘蛛图</span>
+        </button>
+      </div>
+
+      <div class="card">
+        <h2>患者列表</h2>
+        <div style="display:flex;gap:8px;margin-bottom:12px">
+          <input type="text" id="npName" placeholder="姓名 / 代号">
+          <button class="btn btn-primary" onclick="addPatient()">添加</button>
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:12px">
+          <input type="text" id="npCode" placeholder="病历号（可选）">
+          <input type="text" id="npDiag" placeholder="肿瘤类型 / 诊断（可选）">
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:12px">
+          <input type="text" id="npGroup" placeholder="分组（可选，如 A 组 / 试验组）">
+        </div>
+        <ul class="plist" id="patientList"></ul>
+
+        <div class="toolbar">
+          <button class="btn btn-ghost" onclick="loadDemo()">载入示例数据</button>
+          <button class="btn btn-ghost" onclick="exportJSON()">导出 JSON</button>
+          <button class="btn btn-ghost" onclick="exportCSV()">导出 CSV</button>
+          <button class="btn btn-ghost" onclick="document.getElementById('importFile').click()">导入 JSON</button>
+          <input type="file" id="importFile" accept=".json" style="display:none" onchange="importJSON(this)">
+        </div>
+      </div>
+    </div>
+
+    <div class="card" id="patientDetail">
+      <div class="hint" id="pdEmpty">← 请从左侧选择或添加一个患者</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <details>
+      <summary>查看本工具采用的判定规则（摘自 RECIST 1.1）</summary>
+      <ol>
+        <li><b>淋巴结</b>：淋巴结按<b>短轴</b>测量；短径 ≥15 mm 的淋巴结才可作为靶病灶并计入直径总和；短径 10–&lt;15 mm 属非靶病灶；&lt;10 mm 视为正常。</li>
+        <li><b>CR（靶病灶）</b>：所有<b>非淋巴结</b>靶病灶须完全消失（0 mm）；所有病理性淋巴结（无论靶病灶或非靶病灶）短径必须缩小至 <b>&lt; 10 mm</b> —— 淋巴结不必完全消失，短径 &lt;10 mm 即视为正常（RECIST 1.1 §3.3）。</li>
+        <li><b>PR（靶病灶）</b>：靶病灶直径之和比基线减少至少 30%。</li>
+        <li><b>PD（靶病灶）</b>：以研究过程中所有靶病灶直径总和的最小值为参照，增加至少 20%（基线为最小值时以基线为参照），且绝对值增加至少 5 mm；出现新病灶也视为 PD。</li>
+        <li><b>SD（靶病灶）</b>：缩小未达 PR、增加未达 PD，介于两者之间。</li>
+        <li><b>非靶病灶</b>：CR = 全部消失且标志物正常、淋巴结短径&lt;10mm；非CR/非PD = 持续存在和/或标志物仍高于正常；PD = 明确进展（新病灶也视为 PD）。</li>
+        <li><b>总缓解组合</b>：靶 PD / 非靶 PD / 有新病灶 → 总 PD；靶 CR + 非靶 CR → CR；靶 CR + 非靶非CR非PD（或不能评估）→ PR；靶 PR + 非靶非进展 → PR；靶 SD + 非靶非进展 → SD；无靶病灶时按非靶病灶单独判定（CR / 非CR非PD / NE）。</li>
+        <li><b>最佳总缓解（BOR）</b>：取每例自<b>基线至疾病进展 / 末次随访</b>期间各次随访中<b>最优</b>的总体缓解（排序：CR &gt; PR &gt; SD &gt; 非CR/非PD &gt; PD）；NE 表示该次不可评估，不参与比较，仅当各次随访均为 NE 时才记为 NE。系统另标注首次 PD 的时间点。</li>
+        <li><b>病灶匹配</b>：随访病灶按名称与基线匹配；基线有而随访未记录的病灶记 0 mm（视为消失）；随访出现基线没有且 &gt;0 mm 的病灶自动计为新发病灶 → PD。</li>
+        <li><b>ORR / DCR</b>：ORR =（CR + PR）/ 可评估例数；DCR =（CR + PR + SD）/ 可评估例数，均按<b>最佳总缓解</b>统计。可评估例数为有随访记录且最佳总缓解非 NE 的病例。</li>
+      </ol>
+    </details>
+  </div>
+</div>
+
+<script>
+/* ================= IndexedDB ================= */
+let db;
+function openDB() {
+  return new Promise((res, rej) => {
+    const r = indexedDB.open('recist-db', 1);
+    r.onupgradeneeded = e => {
+      const d = r.result;
+      if (!d.objectStoreNames.contains('patients')) d.createObjectStore('patients', { keyPath: 'id' });
+      if (!d.objectStoreNames.contains('visits')) d.createObjectStore('visits', { keyPath: 'id' });
+    };
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  });
+}
+function dbGetAll(store) {
+  return new Promise((res, rej) => {
+    const tx = db.transaction(store, 'readonly');
+    const rq = tx.objectStore(store).getAll();
+    rq.onsuccess = () => res(rq.result);
+    rq.onerror = () => rej(rq.error);
+  });
+}
+function dbPut(store, obj) {
+  return new Promise((res, rej) => {
+    const tx = db.transaction(store, 'readwrite');
+    tx.objectStore(store).put(obj);
+    tx.oncomplete = () => res();
+    tx.onerror = () => rej(tx.error);
+  });
+}
+function dbDel(store, id) {
+  return new Promise((res, rej) => {
+    const tx = db.transaction(store, 'readwrite');
+    tx.objectStore(store).delete(id);
+    tx.oncomplete = () => res();
+    tx.onerror = () => rej(tx.error);
+  });
+}
+
+/* ================= 状态 ================= */
+let patients = [], visits = [], curId = null, editingVisitId = null, curTab = 'followup', visitView = 'card', baselineEditing = false, cohortMode = false;
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const CODES = ['CR', 'PR', 'SD', 'NCRP', 'NE', 'PD'];
+const CODE_LABEL = { CR: 'CR 完全缓解', PR: 'PR 部分缓解', SD: 'SD 疾病稳定', PD: 'PD 疾病进展', NE: 'NE 不能评估', NCRP: '非CR/非PD' };
+const CODE_COLOR = { CR: '#16a34a', PR: '#2563eb', SD: '#6b7280', PD: '#dc2626', NE: '#d97706', NCRP: '#ea580c' };
+const RANK = { CR: 0, PR: 1, SD: 2, NCRP: 3, NE: 4, PD: 5 };
+const NT_LABEL = { none: '无非靶病灶', CR: 'CR（全部消失）', NCRP: '非CR/非PD（持续存在）', PD: 'PD（明确进展）', NE: '不能评估' };
+const PAL = ['#2563eb', '#16a34a', '#d97706', '#9333ea', '#dc2626', '#0891b2', '#db2777', '#65a30d'];
+
+async function loadAll() {
+  patients = await dbGetAll('patients');
+  visits = await dbGetAll('visits');
+  patients.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+  if (patients.length && !curId) curId = patients[0].id;
+  renderAll();
+}
+
+/* ================= 患者 CRUD ================= */
+async function addPatient() {
+  const name = document.getElementById('npName').value.trim();
+  if (!name) { alert('请输入患者姓名或代号'); return; }
+  const p = { id: uid(), name, code: document.getElementById('npCode').value.trim(),
+    diagnosis: document.getElementById('npDiag').value.trim(),
+    group: (document.getElementById('npGroup')?.value || '').trim(), createdAt: Date.now() };
+  await dbPut('patients', p);
+  document.getElementById('npName').value = '';
+  document.getElementById('npCode').value = '';
+  document.getElementById('npDiag').value = '';
+  const gEl = document.getElementById('npGroup'); if (gEl) gEl.value = '';
+  patients.push(p); curId = p.id;
+  curTab = 'baseline'; baselineEditing = true; // 新患者还没有基线，直接进入基线录入
+  renderAll();
+}
+/* 分组 / 肿瘤类型等基础信息就地编辑 */
+async function setPatientGroup(id, val) {
+  const p = patients.find(x => x.id === id);
+  if (!p) return;
+  const g = (val || '').trim();
+  if ((p.group || '') === g) return;
+  p.group = g;
+  await dbPut('patients', p);
+  renderAll();
+}
+async function setPatientDiag(id, val) {
+  const p = patients.find(x => x.id === id);
+  if (!p) return;
+  const d = (val || '').trim();
+  if ((p.diagnosis || '') === d) return;
+  p.diagnosis = d;
+  await dbPut('patients', p);
+  renderAll();
+}
+async function delPatient(id) {
+  const p = patients.find(x => x.id === id);
+  if (!confirm(`删除患者「${p.name}」及其全部 ${visits.filter(v => v.patientId === id).length} 条记录？`)) return;
+  await dbDel('patients', id);
+  for (const v of visits.filter(v => v.patientId === id)) await dbDel('visits', v.id);
+  visits = visits.filter(v => v.patientId !== id);
+  patients = patients.filter(x => x.id !== id);
+  if (curId === id) curId = patients[0]?.id || null;
+  renderAll();
+}
+function selectPatient(id) { curId = id; cohortMode = false; editingVisitId = null; curTab = 'followup'; baselineEditing = false; renderAll(); }
+function switchTab(t) { curTab = t; if (t !== 'baseline') baselineEditing = false; renderAll(); }
+function toggleBaselineEdit() { baselineEditing = !baselineEditing; renderAll(); }
+
+/* ================= 记录编辑器 ================= */
+function addLesionRow(scope, name, mm, readonlyName, isNode) {
+  const nameAttr = readonlyName ? 'readonly style="background:#eef2f8;cursor:default"' : 'placeholder="如：右肺上叶结节 / 腹膜后淋巴结"';
+  const isBase = scope === 'baseBody';
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td><input type="text" class="l-name" ${nameAttr} value="${esc(name || '')}"></td>
+    <td><input type="number" class="l-mm num" min="0" step="0.1" placeholder="mm" value="${mm ?? ''}" ${isBase ? 'oninput="updateNodeHint()"' : ''}></td>
+    <td class="node-cell">${isBase
+      ? `<label class="node-chk"><input type="checkbox" class="l-node" ${isNode ? 'checked' : ''} onchange="updateNodeHint()">淋巴结</label>`
+      : (isNode ? '<span class="l-node-tag">淋巴结</span>' : '<span class="hint" style="font-size:11px">–</span>')}</td>
+    <td><button class="btn btn-del" onclick="this.closest('tr').remove();updateNodeHint()">删</button></td>`;
+  document.getElementById(scope).appendChild(tr);
+}
+function readLesionRows(scope) {
+  const out = [];
+  document.querySelectorAll(`#${scope} tr`).forEach(tr => {
+    const n = tr.querySelector('.l-name').value.trim();
+    const m = parseFloat(tr.querySelector('.l-mm').value);
+    const chk = tr.querySelector('.l-node');
+    if (n || !isNaN(m)) out.push({ name: n || `病灶${out.length + 1}`, mm: isNaN(m) ? null : m, node: !!(chk && chk.checked) });
+  });
+  return out;
+}
+/* 淋巴结靶病灶阈值提示：RECIST 1.1 要求短径 ≥15 mm 才可作为靶病灶 */
+function updateNodeHint() {
+  const el = document.getElementById('nodeHint');
+  if (!el) return;
+  const bad = [];
+  document.querySelectorAll('#baseBody tr').forEach(tr => {
+    const chk = tr.querySelector('.l-node');
+    if (!chk || !chk.checked) return;
+    const nm = tr.querySelector('.l-name').value.trim() || '未命名';
+    const mm = parseFloat(tr.querySelector('.l-mm').value);
+    if (!isNaN(mm) && mm < 15) bad.push(`${nm}（${mm} mm）`);
+  });
+  el.textContent = bad.length
+    ? `⚠ 提示：RECIST 1.1 中短径 ≥15 mm 的淋巴结才作为靶病灶计入直径总和；${bad.join('、')} 短径 <15 mm，通常应归为非靶病灶（10–<15 mm）或视为正常（<10 mm）。仍按靶病灶记录时，随访短径 <10 mm 即判为 CR。`
+    : '';
+}
+function getRadioVal(group) { return document.querySelector(`#${group} input:checked`).value; }
+function bindRadios(id) {
+  document.querySelectorAll(`#${id} label`).forEach(lb => {
+    lb.addEventListener('click', () => {
+      document.querySelectorAll(`#${id} label`).forEach(x => x.classList.remove('on'));
+      lb.classList.add('on');
+      lb.querySelector('input').checked = true;
+    });
+  });
+}
+function ntRadioHTML(id, val, opts) {
+  opts = opts || [['none', '无（不存在非靶病灶）'], ['CR', '完全缓解（全部消失）'], ['NCRP', '非CR/非PD（持续存在）'], ['PD', '疾病进展（明确进展）'], ['NE', '不能评估']];
+  return opts.map(([v, t]) => `<label data-v="${v}" class="${v === val ? 'on' : ''}"><input type="radio" name="${id}" value="${v}" ${v === val ? 'checked' : ''}>${t}</label>`).join('');
+}
+// 基线是参照点：非靶病灶只能是"无"或"持续存在"（CR/PD 是相对基线的变化结果，基线不存在）
+const BASE_NT_OPTS = [['none', '无（不存在非靶病灶）'], ['NCRP', '非CR/非PD（基线时持续存在）']];
+
+/* ================= 保存基线 / 随访 ================= */
+async function saveRecord(kind) {
+  const p = patients.find(x => x.id === curId);
+  if (!p) return;
+  const lesions = readLesionRows(kind === 'baseline' ? 'baseBody' : 'visitBody');
+  // 随访的靶病灶名称继承自基线（RECIST 1.1 §1.4：靶病灶集合在基线固定；随访中新发现的病灶属于"新发病灶"，不计入靶病灶）。
+  // 表单已用只读行预填基线名称，这里仅对空名行按位置补齐，防止绕过只读输入。
+  if (kind === 'followup') {
+    const { base } = sortVisits(p.id);
+    if (base) {
+      lesions.forEach((l, i) => { if (!l.name && base.lesions[i]) l.name = base.lesions[i].name; });
+      // 淋巴结属性继承自基线（随访行只读展示，不允许改动靶病灶性质）
+      const nodeByName = {};
+      base.lesions.forEach(b => { nodeByName[b.name] = !!b.node; });
+      lesions.forEach(l => { l.node = !!nodeByName[l.name]; });
+    }
+  }
+  const nt = getRadioVal(kind === 'baseline' ? 'baseNt' : 'visitNt');
+  const newLesion = kind === 'followup' ? (document.getElementById('visitNew').checked ? 1 : 0) : 0;
+  let label, date;
+  if (kind === 'baseline') {
+    label = '基线';
+    date = document.getElementById('baseDate').value;
+  } else {
+    label = document.getElementById('visitLabel').value.trim() || `第${visits.filter(v => v.patientId === p.id && v.kind === 'followup').length + 1}次随访`;
+    date = document.getElementById('visitDate').value;
+  }
+  const notes = document.getElementById(kind === 'baseline' ? 'baseNotes' : 'visitNotes').value.trim();
+  let rec, isOverwrite = false, actionTxt;
+  if (kind === 'baseline') {
+    const old = visits.find(v => v.patientId === p.id && v.kind === 'baseline');
+    isOverwrite = !!old;
+    actionTxt = isOverwrite ? '覆盖已有基线' : '保存基线';
+    rec = { id: old?.id || uid(), patientId: p.id, kind: 'baseline', label, date, lesions, nt, newLesion: 0, notes };
+  } else {
+    if (editingVisitId) {
+      const old = visits.find(v => v.id === editingVisitId);
+      isOverwrite = true;
+      actionTxt = `覆盖「${esc(old?.label || '随访')}」`;
+      rec = { ...old, label, date, lesions, nt, newLesion, notes };
+    } else {
+      actionTxt = '新增随访';
+      rec = { id: uid(), patientId: p.id, kind: 'followup', label, date, lesions, nt, newLesion, notes, createdAt: Date.now() };
+    }
+  }
+  // 保存前确认（4 秒倒计时，防误覆盖）
+  const warn = isOverwrite ? '<b class="warn">将覆盖已有记录</b>，不可撤销。' : '将写入数据库。';
+  const ok = await confirmSave(
+    `确认${actionTxt}？`,
+    `患者：${esc(p.name)}<br>记录：${esc(label)}${date ? '（' + esc(date) + '）' : ''}<br>靶病灶 ${lesions.length} 个 · 非靶 ${esc(NT_LABEL[nt] || nt)}${kind === 'followup' && newLesion ? ' · 有新发病灶' : ''}<br>${warn}`
+  );
+  if (!ok) return;
+  await dbPut('visits', rec);
+  const idx = visits.findIndex(v => v.id === rec.id);
+  if (idx >= 0) visits[idx] = rec; else visits.push(rec);
+  editingVisitId = null;
+  if (kind === 'baseline') { baselineEditing = false; curTab = 'baseline'; }
+  renderAll();
+}
+async function delVisit(id) {
+  if (!confirm('删除这条记录？')) return;
+  await dbDel('visits', id);
+  visits = visits.filter(v => v.id !== id);
+  if (editingVisitId === id) editingVisitId = null;
+  renderAll();
+}
+function editVisit(id) {
+  const v = visits.find(x => x.id === id);
+  if (!v) return;
+  editingVisitId = id;
+  curTab = 'followup';
+  renderAll();
+  document.getElementById('visitFormCard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+/* ================= 数值精度 =================
+   径线输入精确到 0.1 mm，但 IEEE 754 二进制浮点求和会带长尾（如 79.4+22.4=101.80000000000001）。
+   所有径线总和统一用 sumMm 舍入到 0.1 mm（r1），避免长尾出现在界面、表格与导出中。 */
+const r1 = x => Math.round((x + Number.EPSILON) * 10) / 10;
+const sumMm = les => r1(les.reduce((s, l) => s + (l.mm || 0), 0));
+const fmtMm = x => (x == null ? '?' : x.toFixed(1));
+
+/* ================= RECIST 1.1 计算 ================= */
+function sortVisits(pid) {
+  const vs = visits.filter(v => v.patientId === pid);
+  const fu = vs.filter(v => v.kind === 'followup')
+    .sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.createdAt || 0) - (b.createdAt || 0));
+  return { base: vs.find(v => v.kind === 'baseline'), fu };
+}
+function computePatient(pid) {
+  const { base, fu } = sortVisits(pid);
+  if (!base) return null;
+  const baseNames = new Set(base.lesions.map(l => l.name));
+  const nodeNames = new Set(base.lesions.filter(l => l.node).map(l => l.name));
+  const s0 = sumMm(base.lesions);
+  const results = [];
+  let cumMin = s0;
+  for (const v of fu) {
+    const s1 = sumMm(v.lesions);
+    const autoNew = v.lesions.some(l => !baseNames.has(l.name) && (l.mm || 0) > 0);
+    const newLesion = v.newLesion === 1 || autoNew;
+    const histMin = Math.min(cumMin, s1);
+    const pct = s0 > 0 ? ((s1 - s0) / s0) * 100 : null;
+    // 随访径线按名称回填（缺失 = 本次未测量，按 0 mm 处理）
+    const mmByName = {};
+    v.lesions.forEach(l => { mmByName[l.name] = l.mm || 0; });
+    // RECIST 1.1：非淋巴结靶病灶须完全消失（0 mm）；病理性淋巴结短径缩小至 <10 mm 即视为正常
+    const allNormal = base.lesions.every(b => {
+      const val = mmByName[b.name] === undefined ? 0 : mmByName[b.name];
+      return nodeNames.has(b.name) ? val < 10 : val === 0;
+    });
+    let target;
+    if (s0 === 0) {
+      target = s1 > 0
+        ? { code: 'PD', reason: `基线无可测量靶病灶（S0=0），随访出现可测量病灶（S1=${s1} mm）→ PD` }
+        : { code: 'NE', reason: '无可测量靶病灶（S0=0）→ 靶病灶不能评估（NE）' };
+    } else if (allNormal) {
+      const nodeRemain = base.lesions.some(b => nodeNames.has(b.name) && (mmByName[b.name] || 0) > 0);
+      target = {
+        code: 'CR',
+        reason: nodeRemain
+          ? `非淋巴结靶病灶全部消失，淋巴结短径均 <10 mm（S1=${s1} mm）→ CR（RECIST 1.1：病理性淋巴结短径缩小至 <10 mm 即视为正常，无需完全消失）`
+          : `所有靶病灶消失（S1=0）→ CR`
+      };
+    } else if (s1 <= s0 * 0.7) {
+      target = { code: 'PR', reason: `S1=${s1} mm 较基线 ${s0} mm 减少 ${Math.abs(pct).toFixed(1)}%（≥30%）→ PR` };
+    } else if (s1 >= histMin * 1.2 && (s1 - histMin) >= 5) {
+      target = { code: 'PD', reason: `S1=${s1} mm 较历史最小值 ${histMin} mm 增加 ${((s1 - histMin) / histMin * 100).toFixed(1)}%（≥20%）且绝对增加 ${(s1 - histMin).toFixed(1)} mm（≥5 mm）→ PD` };
+    } else {
+      const extra = (s1 >= histMin * 1.2) ? '（增加幅度≥20%，但绝对增加 < 5 mm，未达 PD）' : '';
+      target = { code: 'SD', reason: `变化 ${pct.toFixed(1)}%，缩小未达 PR（<30%）、增加未达 PD${extra} → SD` };
+    }
+    const nt = v.nt;
+    let overall, ref;
+    if (newLesion) { overall = 'PD'; ref = '出现新发病灶（随访检测到、基线未发现）→ 总缓解 PD（3.3 节）'; }
+    else if (target.code === 'PD') { overall = 'PD'; ref = '靶病灶 PD → 总缓解 PD'; }
+    else if (nt === 'PD') { overall = 'PD'; ref = '非靶病灶明确进展 → 总缓解 PD（3.2 节）'; }
+    else if (target.code === 'NE') {
+      if (nt === 'none' || nt === 'CR') { overall = 'CR'; ref = '无靶病灶，非靶病灶全部消失（或无非靶病灶）→ CR'; }
+      else if (nt === 'NCRP') { overall = 'NCRP'; ref = '无靶病灶，非靶病灶持续存在 → 非CR/非PD'; }
+      else { overall = 'NE'; ref = '无靶病灶，非靶病灶不能评估 → NE'; }
+    } else if (target.code === 'CR') {
+      if (nt === 'none' || nt === 'CR') { overall = 'CR'; ref = '靶 CR + 非靶 CR（或无非靶病灶）→ CR'; }
+      else { overall = 'PR'; ref = '靶 CR + 非靶非进展 → PR'; }
+    } else if (target.code === 'PR') { overall = 'PR'; ref = '靶 PR + 非靶非进展 → PR'; }
+    else { overall = 'SD'; ref = '靶 SD + 非靶非进展 → SD'; }
+    cumMin = histMin;
+    results.push({ visit: v, s0, s1, pct, histMin, target, overall, ref, newLesion, autoNew });
+  }
+  // 最佳总缓解（BOR）：基线至疾病进展期间各次随访中最优的总体缓解（CR > PR > SD > 非CR/非PD > PD）
+  // NE 表示该次不可评估，不参与 BOR 比较；若各次随访均为 NE，则 BOR 记为 NE
+  let best = null, bestVisit = null;
+  for (const r of results) {
+    if (r.overall === 'NE') continue;
+    if (!best || RANK[r.overall] < RANK[best]) { best = r.overall; bestVisit = r.visit; }
+  }
+  if (!best && results.length) best = 'NE';
+  // 最近一次随访的总缓解（仅作参考保留，不再作为疗效结论展示）
+  const lastRes = results.length ? results[results.length - 1] : null;
+  const latest = lastRes ? lastRes.overall : null;
+  const latestVisit = lastRes ? lastRes.visit : null;
+  const firstPD = results.find(r => r.overall === 'PD') || null;
+  return { base, fu, results, best, bestVisit, latest, latestVisit, firstPD };
+}
+
+/* ================= 渲染 ================= */
+function renderAll() { renderPatientList(); renderPatientDetail(); renderCohort(); }
+
+function renderPatientList() {
+  const ul = document.getElementById('patientList');
+  ul.innerHTML = patients.map(p => {
+    const c = computePatient(p.id);
+    const n = c ? c.fu.length : 0;
+    const bestTxt = (c && c.best) ? c.best : '–';
+    return `<li class="${p.id === curId && !cohortMode ? 'cur' : ''}" onclick="selectPatient('${p.id}')">
+      <div class="nm">${esc(p.name)} ${p.code ? `<span class="hint">（${esc(p.code)}）</span>` : ''}</div>
+      <div class="sub">${[p.diagnosis, p.group].filter(Boolean).map(esc).join(' · ')}${p.diagnosis || p.group ? ' · ' : ''}随访 ${n} 次 · 最佳 ${bestTxt}</div>
+    </li>`;
+  }).join('') || '<li class="hint" style="cursor:default">暂无患者，请在上方添加</li>';
+  const btn = document.getElementById('cohortBtn');
+  if (btn) {
+    btn.classList.toggle('on', cohortMode);
+    const sub = document.getElementById('cohortBtnSub');
+    if (sub) sub.textContent = cohortMode
+      ? `正在右侧查看 · 全队列 ${patients.length} 例（点击刷新）`
+      : `ORR / DCR · 最佳总缓解 · 瀑布图 · 蜘蛛图（${patients.length} 例）`;
+  }
+  const entry = document.querySelector('.cohort-entry');
+  if (entry) entry.classList.toggle('on', cohortMode);
+}
+
+/* 队列总览：在右侧面板（患者详情位置）展示 */
+function showCohort() {
+  cohortMode = true;
+  renderAll();
+  const el = document.getElementById('patientDetail');
+  if (el && el.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+function exitCohort() {
+  cohortMode = false;
+  renderAll();
+}
+
+function cohortPanelHTML() {
+  return `
+    <div class="cohort-head">
+      <div class="cohort-head-main">
+        <span class="cohort-kicker">COHORT OVERVIEW</span>
+        <h2>队列总览</h2>
+        <p class="cohort-desc"><b>功能说明：</b>汇总当前筛选范围内的患者疗效 —— ① 逐例 <b>最佳总缓解（BOR）</b> 与 <b>ORR / DCR</b>；② <b>瀑布图</b>：各病例最新一次随访的靶病灶直径和较基线变化；③ <b>蜘蛛图</b>：每例靶病灶直径和较基线的百分比变化随时间走势；④ <b>泳道图（Swimmer Plot）</b>：每例的随访时长与各阶段疗效状态。三张图均标注患者的肿瘤类型与分组。点击图中元素或明细表姓名可返回该病例。</p>
+      </div>
+      <button class="btn btn-ghost" onclick="exitCohort()">← 返回病例详情</button>
+    </div>
+
+    <div class="filter-bar">
+      <label>肿瘤类型<select id="fltDiag" onchange="renderCohort()"></select></label>
+      <label>分组<select id="fltGroup" onchange="renderCohort()"></select></label>
+      <span class="filter-note" id="fltNote"></span>
+    </div>
+
+    <div class="kpi-row" id="cohortKpi"></div>
+    <div class="footnote" id="kpiNote" style="margin-top:8px"></div>
+
+    <div class="cohort-sec">
+      <h2>患者明细<span class="tag">逐例最佳总缓解与首次进展</span></h2>
+      <div class="table-scroll">
+        <table id="cohortTable">
+          <thead><tr><th>患者</th><th>病历号</th><th>肿瘤类型</th><th>分组</th><th>随访</th><th>最佳总缓解</th><th>首次 PD</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="cohort-sec">
+      <h2>瀑布图<span class="tag">最新一次随访 · 靶病灶直径和较基线变化（%）</span></h2>
+      <div class="chart-tools">
+        <span class="ct-label">着色</span>
+        <div class="seg" id="wfSeg">
+          <button data-k="code" onclick="setWfColor('code')">疗效</button>
+          <button data-k="diag" onclick="setWfColor('diag')">肿瘤类型</button>
+          <button data-k="group" onclick="setWfColor('group')">分组</button>
+        </div>
+      </div>
+      <div class="legend" id="wfLegend"></div>
+      <div id="wfChart"></div>
+      <div class="footnote">默认按纵轴数值由大到小排列（可在着色按钮旁切换为按肿瘤类型 / 分组配色）。悬停查看明细（含肿瘤类型与分组），点击柱条返回该病例。</div>
+    </div>
+
+    <div class="cohort-sec">
+      <h2>蜘蛛图<span class="tag">靶病灶直径和较基线的百分比变化 · 随时间</span></h2>
+      <div class="chart-tools">
+        <span class="ct-label">着色</span>
+        <div class="seg" id="spSeg">
+          <button data-k="series" onclick="setSpColor('series')">按患者</button>
+          <button data-k="diag" onclick="setSpColor('diag')">肿瘤类型</button>
+          <button data-k="group" onclick="setSpColor('group')">分组</button>
+        </div>
+      </div>
+      <div class="legend" id="spLegend"></div>
+      <div id="spChart"></div>
+      <div class="footnote">纵轴为靶病灶直径之和（SOD）较基线的百分比变化，基线为 0%；横轴为自基线起的月数，缺日期时按访视顺序推算。虚线为 RECIST 阈值（−30% PR / +20% PD）。可切换按患者 / 肿瘤类型 / 分组配色；悬停线条或图例高亮、点击图例显隐。</div>
+    </div>
+
+    <div class="cohort-sec">
+      <h2>泳道图<span class="tag">Swimmer Plot · 随访时长与疗效演变</span></h2>
+      <div class="legend" id="swLegend"></div>
+      <div id="swChart"></div>
+      <div class="footnote">每条泳道为一位患者：色段表示该次访视评定的疗效状态，右侧箭头表示末次随访仍未进展，竖线标记首次 PD 的时间；左侧标注肿瘤类型与分组。悬停查看阶段明细，点击泳道返回该病例。</div>
+    </div>`;
+}
+
+function renderPatientDetail() {
+  const box = document.getElementById('patientDetail');
+  if (cohortMode) { box.innerHTML = cohortPanelHTML(); return; }
+  const p = patients.find(x => x.id === curId);
+  if (!p) { box.innerHTML = '<div class="hint" id="pdEmpty">← 请从左侧选择或添加一个患者</div>'; return; }
+  const c = computePatient(p.id);
+  const base = c ? c.base : null;
+  const editing = editingVisitId ? visits.find(v => v.id === editingVisitId) : null;
+
+  // 病灶行（基线 / 随访表单）
+  const baseRows = (base && !editing) ? base.lesions : (base ? [] : []);
+  const tabOn = t => curTab === t ? 'on' : '';
+  box.innerHTML = `
+    <h2>患者详情</h2>
+    <div class="info-grid">
+      <div><div class="k">姓名</div><div class="v">${esc(p.name)}</div></div>
+      <div><div class="k">病历号</div><div class="v">${esc(p.code || '–')}</div></div>
+      <div><div class="k">肿瘤类型</div><div class="v"><input type="text" class="grp-input" value="${esc(p.diagnosis || '')}" placeholder="如 非小细胞肺癌" onchange="setPatientDiag('${p.id}', this.value)"></div></div>
+      <div><div class="k">分组</div><div class="v"><input type="text" class="grp-input" value="${esc(p.group || '')}" placeholder="如 A 组 / 试验组" onchange="setPatientGroup('${p.id}', this.value)"></div></div>
+      <div><div class="k">最佳总缓解</div><div class="v">${c && c.best ? `<span class="badge b-${c.best}">${CODE_LABEL[c.best]}</span>${c.bestVisit ? `<span class="hint" style="margin-left:6px">${esc(c.bestVisit.label)}${c.bestVisit.date ? '（' + c.bestVisit.date + '）' : ''}</span>` : ''}` : '–'}</div></div>
+    </div>
+    <div class="toolbar" style="margin-top:0">
+      <button class="btn btn-del" onclick="delPatient('${p.id}')">删除患者</button>
+    </div>
+    <div class="tabs">
+      <button class="tab ${tabOn('followup')}" onclick="switchTab('followup')">随访记录</button>
+      <button class="tab ${tabOn('charts')}" onclick="switchTab('charts')">图表</button>
+      <button class="tab ${tabOn('baseline')}" onclick="switchTab('baseline')">基线记录</button>
+    </div>
+
+    <div class="tab-panel ${tabOn('baseline')}">
+      ${!base ? '<p class="hint" style="margin-top:0">尚未录入基线。基线是参照点，每个患者只需填写一次，录入后很少修改。</p>' : ''}
+      ${base && !baselineEditing ? `
+      <div class="info-grid">
+        <div><div class="k">基线日期</div><div class="v">${esc(base.date || '–')}</div></div>
+        <div><div class="k">靶病灶</div><div class="v" style="font-size:13px;font-weight:500">${base.lesions.map(l => `${esc(l.name)} ${l.mm ?? '?'}mm${l.node ? '<span class="l-node-tag" style="margin-left:4px">淋巴结</span>' : ''}`).join('、') || '无'}</div></div>
+        <div><div class="k">基线直径总和 S0</div><div class="v">${fmtMm(sumMm(base.lesions))} mm</div></div>
+        <div><div class="k">非靶病灶</div><div class="v" style="font-size:13px;font-weight:500">${NT_LABEL[base.nt] || '–'}</div></div>
+      </div>
+      ${base.notes ? `<p class="hint">备注：${esc(base.notes)}</p>` : ''}
+      <div class="toolbar" style="margin-top:0">
+        <button class="btn btn-ghost" onclick="toggleBaselineEdit()">修改基线</button>
+      </div>
+      <p class="hint">基线一般只在录入患者时填写一次，后续很少修改。如需更正，点「修改基线」。</p>` : `
+      <div class="opt" style="margin-top:0;display:flex;gap:8px;flex-wrap:wrap">
+        <span style="font-weight:600">日期：</span>
+        <input type="date" id="baseDate" value="${base?.date || ''}" style="width:auto">
+      </div>
+      <table>
+        <thead><tr><th>靶病灶名称</th><th>基线径线 / 淋巴结短径 (mm)</th><th>是否淋巴结</th><th></th></tr></thead>
+        <tbody id="baseBody"></tbody>
+      </table>
+      <div class="hint" id="nodeHint" style="color:#A15C4E"></div>
+      <div style="margin-top:8px"><button class="btn btn-ghost" onclick="addLesionRow('baseBody')">＋ 添加病灶</button></div>
+      <div class="opt"><span style="font-weight:600">非靶病灶：</span></div>
+      <div class="radio-group" id="baseNt">${ntRadioHTML('baseNt', (base?.nt === 'none' || base?.nt === 'NCRP') ? base.nt : 'none', BASE_NT_OPTS)}</div>
+      <p class="hint">基线是参照点，非靶病灶只有两种合规状态：基线时存在 → 选「非CR/非PD（基线时持续存在）」；不存在 → 选「无」。CR / PD 是相对基线的变化结果，只出现在随访时间点，基线不能选。</p>
+      <div class="opt"><textarea id="baseNotes" rows="2" placeholder="备注（可选）">${base?.notes || ''}</textarea></div>
+      <div class="toolbar">
+        <button class="btn btn-primary" onclick="saveRecord('baseline')">保存基线</button>
+        <button class="btn btn-ghost" onclick="toggleBaselineEdit()">取消</button>
+      </div>
+      <p class="hint">病灶太小无法测量时：可能已消失记 0 mm；仍存在但模糊无法精确测量默认记 5 mm。淋巴结请勾选「淋巴结」并填写<b>短径</b>：短径 &lt;10 mm 在随访中即视为正常（可判 CR，无需完全消失）。</p>`}
+    </div>
+
+    <div class="tab-panel ${tabOn('followup')}">
+      <div class="card" id="visitFormCard" style="margin-bottom:12px;background:#fafbfd">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+          <input type="text" id="visitLabel" placeholder="${editing ? esc(editing.label) : '随访标签（如 第1次随访 / 2026-08-01 影像）'}" value="${editing ? esc(editing.label) : ''}" style="flex:1;min-width:160px">
+          <input type="date" id="visitDate" value="${editing?.date || ''}" style="width:auto">
+        </div>
+        <table>
+          <thead><tr><th>靶病灶名称（继承自基线，不可新增）</th><th>随访径线 / 淋巴结短径 (mm)</th><th>类型</th><th></th></tr></thead>
+          <tbody id="visitBody"></tbody>
+        </table>
+        <p class="hint" style="margin-top:6px">靶病灶集合在基线固定（RECIST 1.1 §1.4），随访不可新增靶病灶；随访中新发现的病灶属于"新发病灶"（下方勾选），不计入靶病灶。可删除某行表示该靶病灶本次未测量（按 0 mm 处理）。</p>
+        <div class="opt"><span style="font-weight:600">非靶病灶：</span></div>
+        <div class="radio-group" id="visitNt">${ntRadioHTML('visitNt', editing?.nt || 'none')}</div>
+        <div class="opt"><label><input type="checkbox" id="visitNew" ${editing?.newLesion ? 'checked' : ''}>随访时出现新发病灶（基线没有的病灶自动识别，无需手填）</label></div>
+        <div class="opt"><textarea id="visitNotes" rows="2" placeholder="备注（可选）">${editing?.notes || ''}</textarea></div>
+        <div class="toolbar" style="margin-top:0">
+          <button class="btn btn-primary" onclick="saveRecord('followup')">${editing ? '保存修改' : '保存随访'}</button>
+          ${editing ? '<button class="btn btn-ghost" onclick="editingVisitId=null;renderAll()">取消编辑</button>' : ''}
+        </div>
+        </div>
+        <div class="toolbar" style="margin-top:0;margin-bottom:10px">
+        <span style="font-weight:600;font-size:14px">随访记录${visitView === 'card' ? '' : '表'}</span>
+        <span style="flex:1"></span>
+        <button class="btn btn-ghost" onclick="toggleVisitView()">${visitView === 'card' ? '以表格显示' : '以卡片显示'}</button>
+        <button class="btn btn-ghost" onclick="exportVisitCSV()">导出 CSV</button>
+        <button class="btn btn-ghost" onclick="copyVisitTSV()">复制到剪贴板</button>
+        </div>
+        <div id="visitList">${c ? (visitView === 'card' ? c.fu.map(v => renderVisitCard(v, c)).join('') : renderVisitTable(c)) : '<div class="hint">暂无随访记录，请在上方添加</div>'}</div>
+        </div>
+
+    <div class="tab-panel ${tabOn('charts')}">
+      <div id="charts">${c ? '' : '<div class="hint">请先保存基线记录</div>'}</div>
+    </div>
+  `;
+  if (c) renderCharts(c);
+  // 填充病灶行（仅当对应表单存在时）
+  const fillRows = (scope, lesions) => {
+    const tbody = document.querySelector(`#${scope}`);
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    if (lesions && lesions.length) lesions.forEach(l => addLesionRow(scope, l.name, l.mm, false, !!l.node));
+    else addLesionRow(scope);
+  };
+  fillRows('baseBody', base ? base.lesions : []);
+  updateNodeHint();
+  // 随访表单：靶病灶名称继承自基线（只读），径线可填；编辑时按名称回填已有 mm
+  const vt = document.querySelector('#visitBody');
+  if (vt) {
+    vt.innerHTML = '';
+    const baseLes = base ? base.lesions : [];
+    const editLes = editing ? editing.lesions : [];
+    const mmByName = {};
+    editLes.forEach(l => { mmByName[l.name] = l.mm; });
+    const shown = new Set();
+    baseLes.forEach(b => {
+      const mm = editing ? (mmByName[b.name] !== undefined ? mmByName[b.name] : null) : null;
+      addLesionRow('visitBody', b.name, mm, true, !!b.node);
+      shown.add(b.name);
+    });
+    // 兼容旧数据：编辑的随访中若存在基线没有的靶病灶（历史新增），仍显示（可编辑名称），避免丢数据
+    if (editing) editLes.forEach(l => { if (!shown.has(l.name)) addLesionRow('visitBody', l.name, l.mm, false, !!l.node); });
+    if (!baseLes.length && !editLes.length) addLesionRow('visitBody', '', null, true);
+  }
+  if (document.getElementById('baseNt')) bindRadios('baseNt');
+  bindRadios('visitNt');
+}
+
+function renderVisitCard(v, c) {
+  const r = c.results.find(x => x.visit.id === v.id);
+  if (!r) return '';
+  const lesTxt = v.lesions.map(l => `${l.name}（${l.mm ?? '?'} mm${l.node ? '，淋巴结短径' : ''}）`).join('、') || '无靶病灶记录';
+  return `<div class="visit-card">
+    <div class="visit-head">
+      <span class="tt">${esc(v.label)}</span>
+      <span class="hint">${v.date || ''}</span>
+      <span class="badge b-${r.target.code}">靶 ${r.target.code}</span>
+      <span class="badge b-${r.overall}">总 ${CODE_LABEL[r.overall]}</span>
+      <span class="pill">S0 <b>${fmtMm(r.s0)}</b> → S1 <b>${fmtMm(r.s1)}</b> mm${r.pct !== null ? `（${r.pct.toFixed(1)}%）` : ''}</span>
+      <span class="pill">历史最小 <b>${fmtMm(r.histMin)}</b> mm</span>
+      <span style="flex:1"></span>
+      <button class="btn btn-ghost btn-sm" onclick="editVisit('${v.id}')">编辑</button>
+      <button class="btn btn-del btn-sm" onclick="delVisit('${v.id}')">删除</button>
+    </div>
+    <ul class="visit-detail">
+      <li>靶病灶：${lesTxt}</li>
+      <li>靶评估：${r.target.reason}</li>
+      <li>非靶：${NT_LABEL[v.nt]}；新发病灶：${r.newLesion ? '有' + (r.autoNew ? '（自动识别）' : '') : '无'}</li>
+      <li>判定依据：${r.ref}</li>
+      ${v.notes ? `<li>备注：${esc(v.notes)}</li>` : ''}
+    </ul>
+  </div>`;
+}
+function toggleVisitView() {
+  visitView = visitView === 'card' ? 'table' : 'card';
+  renderAll();
+}
+function renderVisitTable(c) {
+  const base = c.base;
+  const baseLes = base.lesions.map(l => `${l.name} ${l.mm ?? '?'}mm${l.node ? '（淋巴结）' : ''}`).join('、') || '无靶病灶记录';
+  const baseRow = `<tr class="base-row">
+    <td class="base-tag">基线</td>
+    <td><b>基线</b></td>
+    <td>${esc(base.date || '–')}</td>
+    <td class="les-cell">${esc(baseLes)}</td>
+    <td class="num-c">${c.results.length ? fmtMm(c.results[0].s0) : fmtMm(sumMm(base.lesions))}</td>
+    <td class="num-c">–</td>
+    <td class="num-c">–</td>
+    <td class="num-c">–</td>
+    <td class="num-c">–</td>
+    <td>${NT_LABEL[base.nt]}</td>
+    <td>0（参照）</td>
+    <td class="num-c">–</td>
+    <td class="op-c">–</td>
+  </tr>`;
+  const rows = c.fu.map((v, i) => {
+    const r = c.results.find(x => x.visit.id === v.id);
+    if (!r) return '';
+    const lesTxt = v.lesions.map(l => `${l.name} ${l.mm ?? '?'}mm${l.node ? '（淋巴结）' : ''}`).join('、') || '无靶病灶记录';
+    return `<tr>
+      <td>${i + 1}</td>
+      <td><b>${esc(v.label)}</b></td>
+      <td>${esc(v.date || '–')}</td>
+      <td class="les-cell">${esc(lesTxt)}</td>
+      <td class="num-c">${fmtMm(r.s0)}</td>
+      <td class="num-c">${fmtMm(r.s1)}</td>
+      <td class="num-c">${r.pct !== null ? r.pct.toFixed(1) + '%' : '–'}</td>
+      <td class="num-c">${fmtMm(r.histMin)}</td>
+      <td><span class="badge b-${r.target.code}">${r.target.code}</span></td>
+      <td>${NT_LABEL[v.nt]}</td>
+      <td>${r.newLesion ? '有' + (r.autoNew ? '*' : '') : '无'}</td>
+      <td><span class="badge b-${r.overall}">${r.overall}</span></td>
+      <td class="op-c">
+        <button class="btn btn-ghost btn-sm" onclick="editVisit('${v.id}')">编辑</button>
+        <button class="btn btn-del btn-sm" onclick="delVisit('${v.id}')">删除</button>
+      </td>
+    </tr>`;
+  }).join('');
+  return `<div class="tbl-wrap">
+    <table class="visit-table">
+      <thead><tr>
+        <th>#</th><th>标签</th><th>日期</th><th>靶病灶明细</th>
+        <th class="num-c">S0</th><th class="num-c">S1</th><th class="num-c">变化</th><th class="num-c">历史最小</th>
+        <th>靶评估</th><th>非靶</th><th>新发病灶</th><th>总缓解</th><th>操作</th>
+      </tr></thead>
+      <tbody>${baseRow}${rows}</tbody>
+    </table>
+  </div>
+  ${c.fu.length ? '<p class="hint">首行为基线（参照点，新发病灶恒为 0）；* 自动识别的新发病灶（随访出现、基线没有且 &gt;0 mm）</p>' : ''}`;
+}
+
+/* ================= 随访表导出 / 复制 ================= */
+function visitTableCSV(pid) {
+  const p = patients.find(x => x.id === pid);
+  const c = computePatient(pid);
+  const q = s => `"${String(s ?? '').replace(/"/g, '""')}"`;
+  const lines = ['序号,标签,日期,靶病灶明细,S0_mm,S1_mm,变化%,历史最小_mm,靶评估,非靶,新发病灶,总缓解,判定依据,备注'];
+  c.fu.forEach((v, i) => {
+    const r = c.results.find(x => x.visit.id === v.id);
+    if (!r) return;
+    lines.push([i + 1, q(v.label), q(v.date || ''),
+      q(v.lesions.map(l => `${l.name}:${l.mm ?? '?'}`).join('; ')),
+      r.s0, r.s1, r.pct !== null ? r.pct.toFixed(1) : '', r.histMin,
+      r.target.code, q(NT_LABEL[v.nt]), r.newLesion ? '有' : '无', r.overall,
+      q(r.ref), q(v.notes || '')].join(','));
+  });
+  return '\uFEFF' + lines.join('\n');
+}
+function exportVisitCSV() {
+  const p = patients.find(x => x.id === curId);
+  if (!p) return;
+  const c = computePatient(p.id);
+  if (!c || !c.fu.length) { alert('该患者暂无随访记录'); return; }
+  const ok = confirmSave('确认导出随访表？', `患者：${esc(p.name)}<br>共 ${c.fu.length} 条随访记录，将导出为 CSV 文件。`);
+  ok.then(y => { if (y) download(`随访记录-${p.name}-${new Date().toISOString().slice(0, 10)}.csv`, visitTableCSV(p.id), 'text/csv;charset=utf-8'); });
+}
+async function copyVisitTSV() {
+  const p = patients.find(x => x.id === curId);
+  if (!p) return;
+  const c = computePatient(p.id);
+  if (!c || !c.fu.length) { alert('该患者暂无随访记录'); return; }
+  const q = s => String(s ?? '').replace(/\t/g, ' ');
+  const lines = ['#\t标签\t日期\t靶病灶明细\tS0\tS1\t变化%\t历史最小\t靶评估\t非靶\t新发病灶\t总缓解'];
+  c.fu.forEach((v, i) => {
+    const r = c.results.find(x => x.visit.id === v.id);
+    if (!r) return;
+    lines.push([i + 1, q(v.label), q(v.date || ''),
+      q(v.lesions.map(l => `${l.name}:${l.mm ?? '?'}`).join('; ')),
+      r.s0, r.s1, r.pct !== null ? r.pct.toFixed(1) + '%' : '', r.histMin,
+      r.target.code, q(NT_LABEL[v.nt]), r.newLesion ? '有' : '无', r.overall].join('\t'));
+  });
+  try {
+    await navigator.clipboard.writeText(lines.join('\n'));
+    window.__lastAlert = '已复制到剪贴板';
+    alert('已复制到剪贴板（可粘贴到 Excel）');
+  } catch (e) {
+    alert('复制失败：' + e.message);
+  }
+}
+
+/* ================= SVG 折线图 ================= */
+function svgEl(tag, attrs, parent) {
+  const e = document.createElementNS('http://www.w3.org/2000/svg', tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(e);
+  return e;
+}
+function lineChart(container, o) {
+  // 默认按容器实际像素宽度渲染（1:1，避免 viewBox 缩放导致文字变小）
+  const W = o.width || (container.clientWidth || 760), H = o.height || 300;
+  const pad = { l: 58, r: 18, t: 16, b: 44 };
+  const iw = W - pad.l - pad.r, ih = H - pad.t - pad.b;
+  const svg = svgEl('svg', { viewBox: `0 0 ${W} ${H}`, width: '100%', style: 'max-width:' + W + 'px' });
+  container.appendChild(svg);
+  let ymax = 0;
+  o.series.forEach(s => s.points.forEach(p => { if (p != null && p > ymax) ymax = p; }));
+  (o.refs || []).forEach(r => { if (r.y > ymax) ymax = r.y; });
+  if (ymax <= 0) ymax = 10;
+  // 顶部留出空间：默认 12%；若启用数值标注则加到 18%，防止最高点上的标签被裁剪
+  ymax *= o.valueLabels ? 1.18 : 1.12;
+  const n = Math.max(o.labels.length, 1);
+  const x = i => n === 1 ? pad.l + iw / 2 : pad.l + iw * i / (n - 1);
+  const y = v => pad.t + ih * (1 - v / ymax);
+  // 网格 + y 轴刻度
+  const ticks = 5;
+  for (let t = 0; t <= ticks; t++) {
+    const v = ymax * t / ticks;
+    svgEl('line', { x1: pad.l, y1: y(v), x2: W - pad.r, y2: y(v), stroke: '#eef2f8', 'stroke-width': 1 }, svg);
+    const tx = svgEl('text', { x: pad.l - 8, y: y(v) + 4, 'text-anchor': 'end', 'font-size': 11, fill: '#94a3b8' }, svg);
+    tx.textContent = v >= 100 ? Math.round(v) : v.toFixed(0);
+  }
+  // x 轴标签
+  o.labels.forEach((lb, i) => {
+    const tx = svgEl('text', { x: x(i), y: H - 12, 'text-anchor': 'middle', 'font-size': 11, fill: '#64748b' }, svg);
+    tx.textContent = lb;
+  });
+  // 参考线
+  (o.refs || []).forEach(r => {
+    svgEl('line', { x1: pad.l, y1: y(r.y), x2: W - pad.r, y2: y(r.y), stroke: r.color, 'stroke-width': 1.5, 'stroke-dasharray': '6 4', opacity: .7 }, svg);
+    const tx = svgEl('text', { x: W - pad.r - 4, y: y(r.y) - 5, 'text-anchor': 'end', 'font-size': 11, fill: r.color }, svg);
+    tx.textContent = r.label;
+  });
+  // 序列
+  o.series.forEach(s => {
+    let d = '', pen = false;
+    s.points.forEach((p, i) => {
+      if (p == null) { pen = false; return; }
+      d += (pen ? ' L' : ' M') + x(i).toFixed(1) + ' ' + y(p).toFixed(1);
+      pen = true;
+    });
+    if (d) svgEl('path', { d, fill: 'none', stroke: s.color, 'stroke-width': 2.5, 'stroke-linejoin': 'round' }, svg);
+    s.points.forEach((p, i) => {
+      if (p == null) return;
+      const c = svgEl('circle', { cx: x(i), cy: y(p), r: 5, fill: s.dotColors ? (s.dotColors[i] || s.color) : s.color, stroke: '#fff', 'stroke-width': 1.5 }, svg);
+      const tt = svgEl('title', {}, c);
+      tt.textContent = `${o.labels[i]}：${p} mm${s.dotCodes ? '（' + s.dotCodes[i] + '）' : ''}`;
+    });
+    if (o.valueLabels) {
+      s.points.forEach((p, i) => {
+        if (p == null) return;
+        const lc = s.dotColors ? (s.dotColors[i] || s.color) : s.color;
+        const tx = svgEl('text', { x: x(i), y: y(p) - 9, 'text-anchor': 'middle', 'font-size': 10.5, fill: lc }, svg);
+        tx.textContent = p.toFixed(1);
+      });
+    }
+  });
+}
+
+function renderCharts(c) {
+  const out = [];
+  const labels = ['基线', ...c.fu.map(v => v.label)];
+  // 图1：靶病灶直径总和
+  const sumPts = [sumMm(c.base.lesions), ...c.results.map(r => r.s1)];
+  const dotC = ['#64748b', ...c.results.map(r => CODE_COLOR[r.overall])];
+  const dotCd = ['基线', ...c.results.map(r => r.overall)];
+  const finalMin = c.results.length ? c.results[c.results.length - 1].histMin : sumPts[0];
+  const s0 = sumPts[0];
+  const refs = [];
+  if (s0 > 0) refs.push({ y: s0 * 0.7, label: 'PR 线（-30%）', color: '#16a34a' });
+  // PD 需同时满足 ≥20%（相对历史最小值）且 ≥5mm（绝对值增加），取两者中更高的作为有效阈值。
+  // 当历史最小值为 0（如 CR 后）时 20% 规则退化（任何正径线都超过 0），PD 由 +5mm 规则决定，
+  // 此时阈值 = 5mm，避免 PD 线塌缩到 0（图底部）。
+  const pdRef = Math.max(finalMin * 1.2, finalMin + 5);
+  refs.push({ y: pdRef, label: 'PD 线（+20% 且 +5mm）', color: '#dc2626' });
+  // 图2：各病灶曲线（数据准备需先于 HTML 模板，因图例用到 names）
+  const names = [];
+  c.base.lesions.forEach(l => { if (!names.includes(l.name)) names.push(l.name); });
+  c.fu.forEach(v => v.lesions.forEach(l => { if (!names.includes(l.name)) names.push(l.name); }));
+  const baseMap = {}; c.base.lesions.forEach(l => baseMap[l.name] = l.mm || 0);
+  const lesSeries = names.map((nm, i) => ({
+    name: nm, color: PAL[i % PAL.length],
+    points: [baseMap[nm] !== undefined ? baseMap[nm] : null, ...c.fu.map(v => {
+      const l = v.lesions.find(x => x.name === nm);
+      return l ? (l.mm ?? null) : (baseMap[nm] !== undefined ? 0 : null); // 基线有而随访未记录 → 0（消失）
+    })]
+  }));
+  out.push(`<div class="two-charts">
+  <div>
+    <div class="chart-title" style="margin-top:0">靶病灶直径总和曲线（点颜色 = 该时间点总缓解）</div>
+    <div class="legend"><span><span class="sw" style="background:#2563eb"></span>直径总和 (mm)</span>
+    ${refs.map(r => `<span><span class="sw" style="background:${r.color}"></span>${r.label}</span>`).join('')}</div>
+    <div class="chart-box"></div>
+  </div>
+  <div>
+    <div class="chart-title" style="margin-top:0">各靶病灶径线变化（基线有而随访未记录的病灶记 0 mm，视为消失）</div>
+    <div class="legend">${names.map((nm, i) => `<span><span class="sw" style="background:${PAL[i % PAL.length]}"></span>${esc(nm)}</span>`).join('')}</div>
+    <div class="chart-box-les"></div>
+  </div>
+</div>`);
+  // 时间轴
+  const tl = `<div class="tl-strip">
+    <div class="tl-item" style="background:#64748b">基线<div class="d">${c.base.date || ''}</div></div>
+    ${c.results.map(r => `<div class="tl-item" style="background:${CODE_COLOR[r.overall]}">${r.visit.label}<div class="d">${r.overall}${r.visit.date ? ' · ' + r.visit.date : ''}</div></div>`).join('')}
+  </div>`;
+  const best = c.best ? `<div style="margin:10px 0">最佳总缓解：<span class="badge badge-lg b-${c.best}">${CODE_LABEL[c.best]}</span>${c.bestVisit ? ` <span class="hint">${esc(c.bestVisit.label)}${c.bestVisit.date ? '（' + c.bestVisit.date + '）' : ''}</span>` : ''}${c.firstPD ? ` <span class="hint">首次 PD：${esc(c.firstPD.visit.label)}${c.firstPD.visit.date ? '（' + c.firstPD.visit.date + '）' : ''}</span>` : ''}</div>` : '<div class="hint">暂无随访数据</div>';
+  out.push(`<div class="chart-title">时间点反应时间轴</div>${tl}${best}`);
+
+  const box = document.getElementById('charts');
+  box.innerHTML = out.join('');
+  // 图1
+  const b1 = box.querySelector('.chart-box');
+  lineChart(b1, { valueLabels: true, labels, series: [{ name: '总和', color: '#2563eb', points: sumPts, dotColors: dotC, dotCodes: dotCd }], refs });
+  // 图2
+  const b2 = box.querySelector('.chart-box-les');
+  if (lesSeries.length) lineChart(b2, { valueLabels: true, labels, series: lesSeries });
+  else b2.innerHTML = '<div class="hint">无病灶数据</div>';
+  return '';
+}
+
+/* ================= 队列图表：瀑布图 / 蜘蛛图 ================= */
+// 自基线起的时间（月）；日期缺失时按访视顺序推算（fallback = 第 i 次随访）
+function monthsSince(d1, d2, fallback) {
+  if (d1 && d2) {
+    const a = new Date(d1), b = new Date(d2);
+    if (!isNaN(a) && !isNaN(b) && b >= a) return (b - a) / 86400000 / 30.4375;
+  }
+  return fallback;
+}
+function niceStep(range) {
+  const raw = range / 5;
+  if (!(raw > 0)) return 1;
+  const p = Math.pow(10, Math.floor(Math.log10(raw)));
+  const c = raw / p;
+  return (c <= 1 ? 1 : c <= 2 ? 2 : c <= 5 ? 5 : 10) * p;
+}
+const pctTxt = v => (v > 0 ? '+' : '') + v.toFixed(1) + '%';
+
+function gotoPatient(pid) {
+  selectPatient(pid);
+  const el = document.getElementById('patientDetail');
+  if (el && el.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function waterfallChart(container, data, H = 380) {
+  const W = container.clientWidth || 900;
+  const pad = { l: 56, r: 16, t: 20, b: 84 };
+  const iw = W - pad.l - pad.r, ih = H - pad.t - pad.b;
+  const svg = svgEl('svg', { viewBox: `0 0 ${W} ${H}`, width: '100%', style: 'max-width:' + W + 'px' });
+  container.appendChild(svg);
+  let ymin = Math.min(0, ...data.map(d => d.pct)), ymax = Math.max(0, ...data.map(d => d.pct));
+  const span = (ymax - ymin) || 10;
+  ymin -= span * 0.08; ymax += span * 0.14;
+  const y = v => pad.t + ih * (1 - (v - ymin) / (ymax - ymin));
+  const step = niceStep(ymax - ymin);
+  for (let v = Math.ceil(ymin / step) * step; v <= ymax + 1e-9; v += step) {
+    const zero = Math.abs(v) < step / 1000;
+    svgEl('line', { x1: pad.l, y1: y(v), x2: W - pad.r, y2: y(v), stroke: zero ? '#94a3b8' : '#eef2f8', 'stroke-width': zero ? 1.5 : 1 }, svg);
+    const tx = svgEl('text', { x: pad.l - 8, y: y(v) + 4, 'text-anchor': 'end', 'font-size': 11, fill: '#94a3b8' }, svg);
+    tx.textContent = (v > 0 ? '+' : '') + Math.round(v * 10) / 10 + '%';
+  }
+  const n = data.length;
+  const bw = Math.min(46, Math.max(8, iw / n * 0.62));
+  data.forEach((d, i) => {
+    const cx = pad.l + iw * (i + 0.5) / n;
+    const y0 = y(0), y1 = y(d.pct);
+    const top = Math.min(y0, y1), h = Math.max(2, Math.abs(y1 - y0));
+    const g = svgEl('g', { class: 'wf-bar' }, svg);
+    const rect = svgEl('rect', { x: cx - bw / 2, y: top, width: bw, height: h, rx: 3, fill: d.color || CODE_COLOR[d.overall], opacity: .92 }, g);
+    const tt = svgEl('title', {}, rect);
+    tt.textContent = `${d.name}\n${d.label}${d.date ? '（' + d.date + '）' : ''}\nS0 ${d.s0} → S1 ${d.s1} mm（${pctTxt(d.pct)}）\n总缓解：${CODE_LABEL[d.overall]}\n肿瘤类型：${d.diag || '—'}\n分组：${d.group || '—'}\n点击查看该患者`;
+    g.addEventListener('click', () => gotoPatient(d.pid));
+    const vl = svgEl('text', { x: cx, y: d.pct >= 0 ? top - 5 : top + h + 13, 'text-anchor': 'middle', 'font-size': 10.5, fill: d.color || CODE_COLOR[d.overall], 'font-weight': 600 }, svg);
+    vl.textContent = pctTxt(d.pct);
+    const nm = d.name.length > 7 ? d.name.slice(0, 6) + '…' : d.name;
+    const ly = H - pad.b + 14;
+    const xl = svgEl('text', { x: cx, y: ly, 'text-anchor': 'end', 'font-size': 11, fill: '#64748b', transform: `rotate(-38 ${cx} ${ly})` }, svg);
+    xl.textContent = nm;
+  });
+}
+
+function spiderChart(container, series, H = 420) {
+  const W = container.clientWidth || 900;
+  const pad = { l: 56, r: 18, t: 34, b: 44 };
+  const iw = W - pad.l - pad.r, ih = H - pad.t - pad.b;
+  const svg = svgEl('svg', { viewBox: `0 0 ${W} ${H}`, width: '100%', style: 'max-width:' + W + 'px' });
+  container.appendChild(svg);
+  let xmax = 1; const pcts = [0, -30, 20];
+  series.forEach(s => s.pts.forEach(p => { xmax = Math.max(xmax, p.t); pcts.push(p.pct); }));
+  let ymin = Math.min(...pcts), ymax = Math.max(...pcts);
+  const span = (ymax - ymin) || 10;
+  ymin -= span * 0.06; ymax += span * 0.08;
+  const x = t => pad.l + iw * t / xmax;
+  const y = v => pad.t + ih * (1 - (v - ymin) / (ymax - ymin));
+  // 坐标轴标题
+  const yTitle = svgEl('text', { x: pad.l - 44, y: 14, 'font-size': 11, fill: '#4E7B92', 'font-weight': 600 }, svg);
+  yTitle.textContent = '靶病灶直径和较基线变化（%）';
+  const xTitle = svgEl('text', { x: W - pad.r, y: H - 3, 'text-anchor': 'end', 'font-size': 11, fill: '#6F8791' }, svg);
+  xTitle.textContent = '自基线起时间（月）';
+  const ystep = niceStep(ymax - ymin);
+  for (let v = Math.ceil(ymin / ystep) * ystep; v <= ymax + 1e-9; v += ystep) {
+    svgEl('line', { x1: pad.l, y1: y(v), x2: W - pad.r, y2: y(v), stroke: '#eef2f8' }, svg);
+    const tx = svgEl('text', { x: pad.l - 8, y: y(v) + 4, 'text-anchor': 'end', 'font-size': 11, fill: '#94a3b8' }, svg);
+    tx.textContent = (v > 0 ? '+' : '') + Math.round(v * 10) / 10 + '%';
+  }
+  const xt = niceStep(xmax);
+  for (let t = 0; t <= xmax + 1e-9; t += xt) {
+    svgEl('line', { x1: x(t), y1: pad.t, x2: x(t), y2: pad.t + ih, stroke: '#f4f7fa' }, svg);
+    const tx = svgEl('text', { x: x(t), y: H - 12, 'text-anchor': 'middle', 'font-size': 11, fill: '#64748b' }, svg);
+    tx.textContent = Math.round(t * 10) / 10 + ' 月';
+  }
+  [{ v: -30, label: 'PR 参考（-30%）', c: '#16a34a' }, { v: 20, label: 'PD 参考（+20%）', c: '#dc2626' }].forEach(r => {
+    svgEl('line', { x1: pad.l, y1: y(r.v), x2: W - pad.r, y2: y(r.v), stroke: r.c, 'stroke-width': 1.2, 'stroke-dasharray': '6 4', opacity: .55 }, svg);
+    const tx = svgEl('text', { x: W - pad.r - 4, y: y(r.v) - 5, 'text-anchor': 'end', 'font-size': 10.5, fill: r.c }, svg);
+    tx.textContent = r.label;
+  });
+  const gs = series.map((s, i) => {
+    const g = svgEl('g', { class: 'sp-series' }, svg);
+    const pts = [...s.pts].sort((a, b) => a.t - b.t);
+    const d = pts.map((p, j) => (j ? 'L' : 'M') + x(p.t).toFixed(1) + ' ' + y(p.pct).toFixed(1)).join(' ');
+    svgEl('path', { d, fill: 'none', stroke: s.color, 'stroke-width': 2.2, 'stroke-linejoin': 'round', opacity: .85 }, g);
+    pts.forEach(p => {
+      const c = svgEl('circle', { cx: x(p.t), cy: y(p.pct), r: 4, fill: s.color, stroke: '#fff', 'stroke-width': 1.2 }, g);
+      const tt = svgEl('title', {}, c);
+      tt.textContent = `${s.name} · ${p.label}${p.date ? '（' + p.date + '）' : ''}\n靶病灶直径和 ${p.s1} mm（基线 ${p.s0} mm）\n较基线 ${pctTxt(p.pct)}\n肿瘤类型：${s.diag || '—'}\n分组：${s.group || '—'}`;
+    });
+    g.addEventListener('mouseenter', () => spHi(i));
+    g.addEventListener('mouseleave', () => spHi(-1));
+    return g;
+  });
+  function spHi(k) { gs.forEach((g, j) => { if (g.style.display !== 'none') g.style.opacity = (k < 0 || j === k) ? '' : .12; }); }
+  return gs;
+}
+
+/* 泳道图（Swimmer Plot）：每例一行，色段 = 各访视评定的疗效状态 */
+function groupColor(g) {
+  if (!g) return '#C0C4C1';
+  let h = 0;
+  for (const ch of g) h = (h * 31 + ch.codePointAt(0)) % 997;
+  return PAL[h % PAL.length];
+}
+function swimmerChart(container, data) {
+  const W = container.clientWidth || 720;
+  const rowH = 28, pad = { l: 152, r: 34, t: 34, b: 34 };
+  const H = pad.t + data.length * rowH + pad.b;
+  const iw = W - pad.l - pad.r;
+  const svg = svgEl('svg', { viewBox: `0 0 ${W} ${H}`, width: '100%', style: 'max-width:' + W + 'px' });
+  container.appendChild(svg);
+
+  let xmax = 1;
+  data.forEach(d => { xmax = Math.max(xmax, d.endT); });
+  xmax = Math.max(1, Math.ceil(xmax));
+  const x = t => pad.l + iw * (t / xmax);
+
+  // 轴标题
+  const at = svgEl('text', { x: pad.l, y: 16, 'font-size': 11, fill: '#4E7B92', 'font-weight': 600 }, svg);
+  at.textContent = '自基线起时间（月）';
+  // 时间轴网格与刻度
+  const xt = niceStep(xmax);
+  for (let t = 0; t <= xmax + 1e-9; t += xt) {
+    svgEl('line', { x1: x(t), y1: pad.t - 6, x2: x(t), y2: pad.t + data.length * rowH, stroke: '#E8F2F6' }, svg);
+    const tx = svgEl('text', { x: x(t), y: H - 12, 'text-anchor': 'middle', 'font-size': 11, fill: '#6F8791' }, svg);
+    tx.textContent = Math.round(t * 10) / 10 + ' 月';
+  }
+
+  data.forEach((d, i) => {
+    const top = pad.t + i * rowH, cy = top + rowH / 2;
+    const g = svgEl('g', { class: 'sw-lane' }, svg);
+    if (i % 2 === 1) svgEl('rect', { x: 0, y: top, width: W, height: rowH, fill: '#F7FBFC' }, g);
+
+    // 左侧标签：分组色点 + 姓名 + （分组 · 肿瘤类型）
+    svgEl('circle', { cx: 8, cy, r: 3.5, fill: groupColor(d.group) }, g);
+    const nm = d.name.length > 8 ? d.name.slice(0, 7) + '…' : d.name;
+    const lab = svgEl('text', { x: 17, y: cy + 1, 'font-size': 12, fill: '#223A43', 'font-weight': 600 }, g);
+    lab.textContent = nm;
+    const meta = [d.group, d.diag].filter(Boolean).join(' · ');
+    const sub = svgEl('text', { x: 17, y: cy + 12, 'font-size': 9.5, fill: '#6F8791' }, g);
+    sub.textContent = meta.length > 20 ? meta.slice(0, 19) + '…' : (meta || '—');
+
+    // 疗效色段
+    if (!d.segs.length) {
+      svgEl('circle', { cx: x(0) + 3, cy, r: 4, fill: '#C0C4C1' }, g);
+    }
+    d.segs.forEach(sg => {
+      const x0 = x(sg.t0), x1 = Math.max(x(sg.t1), x0 + 2);
+      const rect = svgEl('rect', { x: x0, y: cy - 7, width: Math.max(2, x1 - x0), height: 14, rx: 3,
+        fill: CODE_COLOR[sg.code] || '#C0C4C1', opacity: .92 }, g);
+      const tt = svgEl('title', {}, rect);
+      tt.textContent = `${d.name} · ${sg.label}${sg.date ? '（' + sg.date + '）' : ''}\n疗效：${CODE_LABEL[sg.code] || sg.code}\n靶病灶直径和 ${sg.s1} mm（较基线 ${sg.pct === null ? '—' : pctTxt(sg.pct)}）\n肿瘤类型：${d.diag || '—'}\n分组：${d.group || '—'}\n点击查看该患者`;
+    });
+
+    // 首次 PD 标记 / 末次随访未进展箭头
+    if (d.pdT !== null && d.pdT !== undefined) {
+      const px = x(d.pdT);
+      svgEl('line', { x1: px, y1: cy - 10, x2: px, y2: cy + 10, stroke: '#223A43', 'stroke-width': 1.6 }, g);
+      const pdx = svgEl('text', { x: px + 3, y: cy - 10, 'font-size': 9, fill: '#D08A80', 'font-weight': 700 }, g);
+      pdx.textContent = 'PD';
+    } else if (d.endT > 0) {
+      const ax = x(d.endT);
+      svgEl('path', { d: `M${ax + 3} ${cy - 5} L${ax + 12} ${cy} L${ax + 3} ${cy + 5} Z`, fill: '#4E7B92' }, g);
+    }
+
+    g.addEventListener('click', () => gotoPatient(d.pid));
+  });
+}
+
+/* ================= 队列总览 ================= */
+/* 图表着色维度：瀑布图 code=疗效 / diag=肿瘤类型 / group=分组；蜘蛛图 series=按患者 / diag / group */
+let wfColorBy = 'code', spColorBy = 'series';
+function setWfColor(k) { wfColorBy = k; renderCohort(); }
+function setSpColor(k) { spColorBy = k; renderCohort(); }
+function syncColorSegs() {
+  [['wfSeg', wfColorBy], ['spSeg', spColorBy]].forEach(([id, val]) => {
+    const box = document.getElementById(id);
+    if (!box || !box.querySelectorAll) return;
+    box.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.k === val));
+  });
+}
+/* 类别图例（按肿瘤类型 / 分组着色时使用） */
+function catLegend(values) {
+  const seen = new Map();
+  values.forEach(v => { const k = (v || '').trim(); if (!seen.has(k)) seen.set(k, groupColor(k)); });
+  return [...seen.entries()]
+    .map(([v, c]) => `<span><span class="sw" style="background:${c}"></span>${esc(v || '未填写')}</span>`).join('');
+}
+
+/* 统一筛选下拉的选项（保持当前选择） */
+function syncFilterOptions() {
+  const build = (sel, field) => {
+    if (!sel) return;
+    const cur = sel.value;
+    const vals = [...new Set(patients.map(p => (p[field] || '').trim()).filter(Boolean))]
+      .sort((a, b) => a.localeCompare(b, 'zh'));
+    const hasEmpty = patients.some(p => !(p[field] || '').trim());
+    sel.innerHTML = '<option value="">全部</option>' +
+      vals.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join('') +
+      (hasEmpty ? '<option value="__none">未填写</option>' : '');
+    sel.value = (cur === '__none' || vals.includes(cur)) ? cur : '';
+  };
+  build(document.getElementById('fltDiag'), 'diagnosis');
+  build(document.getElementById('fltGroup'), 'group');
+}
+
+function renderCohort() {
+  // 仅在右侧队列总览面板打开时渲染（元素不存在时直接跳过）
+  if (!cohortMode || !document.getElementById('cohortKpi')) return;
+  syncColorSegs();
+  syncFilterOptions();
+  const fD = document.getElementById('fltDiag').value;
+  const fG = document.getElementById('fltGroup').value;
+  const hit = (v, f) => !f || (f === '__none' ? !v : v === f);
+  const fPatients = patients.filter(p => hit((p.diagnosis || '').trim(), fD) && hit((p.group || '').trim(), fG));
+  const rows = fPatients.map(p => {
+    const c = computePatient(p.id);
+    return { p, n: c ? c.fu.length : 0,
+      best: c && c.best ? c.best : null,
+      bestLabel: c && c.bestVisit ? c.bestVisit.label : null,
+      firstPD: c && c.firstPD ? c.firstPD.visit.label : null };
+  });
+  const fltNote = document.getElementById('fltNote');
+  if (fltNote) {
+    const parts = [];
+    if (fD) parts.push('肿瘤类型：' + (fD === '__none' ? '未填写' : fD));
+    if (fG) parts.push('分组：' + (fG === '__none' ? '未填写' : fG));
+    fltNote.textContent = (parts.length ? '已筛选 · ' + parts.join('｜') + ' · ' : '当前范围 · ') +
+      `${fPatients.length} / ${patients.length} 例`;
+  }
+  const tb = document.querySelector('#cohortTable tbody');
+  tb.innerHTML = rows.map(r => `<tr>
+    <td><span class="clink" onclick="gotoPatient('${r.p.id}')">${esc(r.p.name)}</span></td>
+    <td>${esc(r.p.code || '')}</td><td>${esc(r.p.diagnosis || '')}</td>
+    <td>${r.p.group ? `<span class="grp-tag">${esc(r.p.group)}</span>` : '–'}</td>
+    <td>${r.n}</td>
+    <td>${r.best ? `<span class="badge b-${r.best}">${CODE_LABEL[r.best]}</span>${r.bestLabel ? `<span class="hint" style="margin-left:6px;font-size:11px">${esc(r.bestLabel)}</span>` : ''}` : '–'}</td>
+    <td>${r.firstPD ? esc(r.firstPD) : '–'}</td>
+  </tr>`).join('') || '<tr><td colspan="7" class="hint">暂无数据</td></tr>';
+
+  /* ---- ORR / DCR（按最佳总缓解 BOR 统计）---- */
+  const total = rows.length;
+  const counts = {};
+  CODES.forEach(c => counts[c] = 0);
+  rows.forEach(r => { if (r.best) counts[r.best]++; });
+  const nEval = rows.filter(r => r.best && r.best !== 'NE').length;
+  const nCR = counts.CR, nPR = counts.PR, nSD = counts.SD;
+  const orrN = nCR + nPR, dcrN = nCR + nPR + nSD;
+  const pctOf = (n, d) => d > 0 ? (n / d * 100) : null;
+  const fmtPct = v => v === null ? '–' : (Math.round(v * 10) / 10).toFixed(1) + '%';
+
+  document.getElementById('cohortKpi').innerHTML = `
+    <div class="kpi k-orr"><div class="k-label">ORR 客观缓解率</div><div class="k-val">${fmtPct(pctOf(orrN, nEval))}</div><div class="k-sub">CR+PR ${orrN} / 可评估 ${nEval}</div></div>
+    <div class="kpi k-dcr"><div class="k-label">DCR 疾病控制率</div><div class="k-val">${fmtPct(pctOf(dcrN, nEval))}</div><div class="k-sub">CR+PR+SD ${dcrN} / ${nEval}</div></div>
+    <div class="kpi k-cr"><div class="k-label">CR 完全缓解</div><div class="k-val">${nCR}</div><div class="k-sub">占全队列 ${fmtPct(pctOf(nCR, total))}</div></div>
+    <div class="kpi k-n"><div class="k-label">可评估例数</div><div class="k-val">${nEval}</div><div class="k-sub">全队列共 ${total} 例</div></div>`;
+
+  document.getElementById('kpiNote').innerHTML =
+    `<b>ORR =（CR + PR）/ 可评估例数 = ${orrN} / ${nEval} = ${fmtPct(pctOf(orrN, nEval))}</b>；` +
+    `<b>DCR =（CR + PR + SD）/ 可评估例数 = ${dcrN} / ${nEval} = ${fmtPct(pctOf(dcrN, nEval))}</b>。` +
+    `「最佳总缓解（BOR）」取每例自基线至疾病进展 / 末次随访期间各次随访中<b>最优</b>的总体缓解（CR &gt; PR &gt; SD &gt; 非CR/非PD &gt; PD）；NE 表示该次不可评估，不参与比较，各次随访均为 NE 时才记为 NE。` +
+    `「可评估例数」指有随访记录且最佳总缓解非 NE 的病例（当前 ${nEval} 例）：NE 与尚未随访者不计入分母，PD 计入分母但不计入分子。` +
+    `如需按全队列（${total} 例）口径统计，分母可直接取 ${total}。`;
+
+  /* ---- 瀑布图 / 蜘蛛图 / 泳道图数据 ---- */
+  const wfData = [], spiderSeries = [], swimmerData = [];
+  fPatients.forEach(p => {
+    const c = computePatient(p.id);
+    if (!c || !c.results.length) return;
+    const diag = (p.diagnosis || '').trim(), grp = (p.group || '').trim();
+    const last = c.results[c.results.length - 1];
+    if (last.s0 > 0 && last.pct !== null)
+      wfData.push({ pid: p.id, name: p.name, pct: last.pct, overall: last.overall, label: last.visit.label,
+        date: last.visit.date || '', s0: last.s0, s1: last.s1, diag, group: grp });
+
+    // 蜘蛛图：靶病灶直径和（SOD）较基线的百分比变化
+    const pts = [{ t: 0, pct: 0, s1: c.results[0].s0, s0: c.results[0].s0, label: '基线', date: c.base.date || '' }];
+    const segs = [];
+    let prevT = 0;
+    c.results.forEach((r, i) => {
+      const t = monthsSince(c.base.date, r.visit.date, i + 1);
+      pts.push({ t, pct: r.pct === null ? 0 : r.pct, s1: r.s1, s0: r.s0, label: r.visit.label, date: r.visit.date || '' });
+      segs.push({ t0: prevT, t1: t, code: r.overall, pct: r.pct, s1: r.s1, s0: r.s0,
+        label: r.visit.label, date: r.visit.date || '' });
+      prevT = t;
+    });
+    // 基线无可测量靶病灶（S0=0）时，百分比变化无意义 → 不进蜘蛛图
+    if (c.results[0].s0 > 0) spiderSeries.push({ name: p.name, diag, group: grp, best: c.best,
+      color: spColorBy === 'series'
+        ? PAL[spiderSeries.length % PAL.length]
+        : groupColor(spColorBy === 'diag' ? diag : grp), pts });
+    const pdSeg = segs.find(s => s.code === 'PD');
+    swimmerData.push({ pid: p.id, name: p.name, diag, group: grp, best: c.best, segs,
+      endT: prevT, pdT: pdSeg ? pdSeg.t1 : null });
+  });
+  // 瀑布图着色：疗效 / 肿瘤类型 / 分组
+  wfData.forEach(d => {
+    d.color = wfColorBy === 'code'
+      ? CODE_COLOR[d.overall]
+      : groupColor(wfColorBy === 'diag' ? d.diag : d.group);
+  });
+  // 默认按纵轴数值由大到小排序
+  wfData.sort((a, b) => b.pct - a.pct);
+  // 泳道图排序：先按分组（未填写排在后），组内按随访时长降序
+  swimmerData.sort((a, b) => {
+    const ga = a.group || '\uffff', gb = b.group || '\uffff';
+    return ga.localeCompare(gb, 'zh') || b.endT - a.endT || a.name.localeCompare(b.name, 'zh');
+  });
+
+  /* ---- 瀑布图 ---- */
+  const wfBox = document.getElementById('wfChart'), wfLg = document.getElementById('wfLegend');
+  wfBox.innerHTML = ''; wfLg.innerHTML = '';
+  if (wfData.length) {
+    waterfallChart(wfBox, wfData, 320);
+    wfLg.innerHTML = wfColorBy === 'code'
+      ? CODES.map(c => `<span><span class="sw" style="background:${CODE_COLOR[c]}"></span>${CODE_LABEL[c]}</span>`).join('')
+      : catLegend(wfData.map(d => wfColorBy === 'diag' ? d.diag : d.group));
+  } else {
+    wfBox.innerHTML = '<div class="hint">当前筛选下暂无可用数据（需有基线且至少一次随访）</div>';
+  }
+
+  /* ---- 蜘蛛图 ---- */
+  const spBox = document.getElementById('spChart'), spLg = document.getElementById('spLegend');
+  spBox.innerHTML = ''; spLg.innerHTML = '';
+  if (spiderSeries.length) {
+    const gs = spiderChart(spBox, spiderSeries, 340);
+    if (spColorBy === 'series') {
+      const hidden = new Set();
+      spLg.innerHTML = spiderSeries.map((s, i) =>
+        `<span class="sp-lgd" data-i="${i}"><span class="sw" style="background:${s.color}"></span>${esc(s.name)}${s.group ? ` <span class="grp-tag">${esc(s.group)}</span>` : ''}${s.best ? ` <span class="badge b-${s.best}" style="font-size:10px;padding:0 6px">${s.best}</span>` : ''}</span>`).join('');
+      spLg.querySelectorAll('.sp-lgd').forEach(el => {
+        const i = +el.dataset.i;
+        el.addEventListener('click', () => {
+          if (hidden.has(i)) hidden.delete(i); else hidden.add(i);
+          gs[i].style.display = hidden.has(i) ? 'none' : '';
+          el.style.opacity = hidden.has(i) ? .35 : 1;
+        });
+        el.addEventListener('mouseenter', () => { if (!hidden.has(i)) gs.forEach((g, j) => { g.style.opacity = j === i ? 1 : .12; }); });
+        el.addEventListener('mouseleave', () => gs.forEach(g => { g.style.opacity = ''; }));
+      });
+    } else {
+      // 按肿瘤类型 / 分组着色：图例改为类别图例
+      spLg.innerHTML = catLegend(spiderSeries.map(s => spColorBy === 'diag' ? s.diag : s.group)) +
+        `<span class="hint" style="font-size:12px">同色线条属于同一${spColorBy === 'diag' ? '肿瘤类型' : '分组'}（共 ${spiderSeries.length} 条）</span>`;
+    }
+  } else {
+    spBox.innerHTML = '<div class="hint">当前筛选下暂无可用数据（需有含可测量靶病灶的基线及随访）</div>';
+  }
+
+  /* ---- 泳道图 ---- */
+  const swBox = document.getElementById('swChart'), swLg = document.getElementById('swLegend');
+  swBox.innerHTML = ''; swLg.innerHTML = '';
+  if (swimmerData.length) {
+    swimmerChart(swBox, swimmerData);
+    swLg.innerHTML = CODES.map(c => `<span><span class="sw" style="background:${CODE_COLOR[c]}"></span>${CODE_LABEL[c]}</span>`).join('') +
+      `<span><span class="sw" style="background:#223A43"></span>首次 PD 时点</span>` +
+      `<span><span class="sw" style="background:#4E7B92"></span>末次随访仍未进展</span>`;
+  } else {
+    swBox.innerHTML = '<div class="hint">当前筛选下暂无可用数据（需至少一次随访）</div>';
+  }
+}
+
+/* ================= 导出 / 导入 ================= */
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type }));
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+function exportJSON() {
+  download('recist-data-' + new Date().toISOString().slice(0, 10) + '.json',
+    JSON.stringify({ patients, visits }, null, 2), 'application/json');
+}
+function exportCSV() {
+  const lines = ['患者,病历号,肿瘤类型,分组,记录,日期,靶病灶,非靶,新发病灶,S0_mm,S1_mm,变化%,历史最小_mm,靶评估,总缓解,判定依据,备注'];
+  const q = s => `"${String(s ?? '').replace(/"/g, '""')}"`;
+  for (const p of patients) {
+    const c = computePatient(p.id);
+    if (!c) continue;
+    const lesTxt = l => `${l.name}${l.node ? '（淋巴结）' : ''}:${l.mm ?? '?'}`;
+    const baseTxt = c.base.lesions.map(lesTxt).join('; ');
+    lines.push([q(p.name), q(p.code), q(p.diagnosis), q(p.group), q('基线'), q(c.base.date || ''), q(baseTxt), q(NT_LABEL[c.base.nt]), '0',
+      q(fmtMm(sumMm(c.base.lesions))), '', '', '', '', '', q(c.base.notes || '')].join(','));
+    for (const r of c.results) {
+      const v = r.visit;
+      lines.push([q(p.name), q(p.code), q(p.diagnosis), q(p.group), q(v.label), q(v.date || ''),
+        q(v.lesions.map(lesTxt).join('; ')), q(NT_LABEL[v.nt]), r.newLesion ? 1 : 0,
+        q(r.s0), q(r.s1), r.pct !== null ? r.pct.toFixed(1) : '', q(r.histMin), q(r.target.code), q(r.overall), q(r.ref), q(v.notes || '')].join(','));
+    }
+  }
+  download('recist-data-' + new Date().toISOString().slice(0, 10) + '.csv', '\uFEFF' + lines.join('\n'), 'text/csv;charset=utf-8');
+}
+async function importJSON(input) {
+  const f = input.files[0];
+  if (!f) return;
+  try {
+    const data = JSON.parse(await f.text());
+    for (const p of data.patients || []) await dbPut('patients', p);
+    for (const v of data.visits || []) await dbPut('visits', v);
+    await loadAll();
+    alert(`导入完成：${(data.patients || []).length} 个患者、${(data.visits || []).length} 条记录`);
+  } catch (e) { alert('导入失败：' + e.message); }
+  input.value = '';
+}
+
+/* ================= 示例数据 ================= */
+async function loadDemo() {
+  if (patients.length && !confirm('将追加示例患者（不覆盖已有数据），继续？')) return;
+  const mkFor = patientId => (kind, label, date, lesions, nt, nl) =>
+    dbPut('visits', { id: uid(), patientId, kind, label, date, lesions, nt, newLesion: nl, notes: '' });
+
+  // 示例 A：NSCLC · 试验组，PR → SD → CR
+  const pidA = uid();
+  await dbPut('patients', { id: pidA, name: '示例患者A', code: 'DEMO-001', diagnosis: '非小细胞肺癌（IV期）',
+    group: '试验组', createdAt: Date.now() });
+  const mkA = mkFor(pidA);
+  await mkA('baseline', '基线', '2026-06-01',
+    [{ name: '右肺上叶结节', mm: 20 }, { name: '纵隔淋巴结', mm: 15 }], 'none', 0);
+  await mkA('followup', '第1次随访', '2026-07-15',
+    [{ name: '右肺上叶结节', mm: 12 }, { name: '纵隔淋巴结', mm: 9 }], 'none', 0); // -40% → PR
+  await mkA('followup', '第2次随访', '2026-09-01',
+    [{ name: '右肺上叶结节', mm: 14 }, { name: '纵隔淋巴结', mm: 10 }], 'none', 0); // -31% → SD
+  await mkA('followup', '第3次随访', '2026-10-20',
+    [{ name: '右肺上叶结节', mm: 0 }, { name: '纵隔淋巴结', mm: 0 }], 'none', 0); // CR
+
+  // 示例 B：结直肠癌 · 对照组，SD → PR → PD
+  const pidB = uid();
+  await dbPut('patients', { id: pidB, name: '示例患者B', code: 'DEMO-002', diagnosis: '结直肠癌（肝转移）',
+    group: '对照组', createdAt: Date.now() });
+  const mkB = mkFor(pidB);
+  await mkB('baseline', '基线', '2026-05-10',
+    [{ name: '肝右叶转移灶', mm: 32 }, { name: '直肠原发灶', mm: 45 }], 'NCRP', 0);
+  await mkB('followup', '第1次随访', '2026-07-01',
+    [{ name: '肝右叶转移灶', mm: 30 }, { name: '直肠原发灶', mm: 43 }], 'NCRP', 0); // -5% → SD
+  await mkB('followup', '第2次随访', '2026-09-01',
+    [{ name: '肝右叶转移灶', mm: 20 }, { name: '直肠原发灶', mm: 30 }], 'NCRP', 0); // -35% → PR
+  await mkB('followup', '第3次随访', '2026-11-01',
+    [{ name: '肝右叶转移灶', mm: 26 }, { name: '直肠原发灶', mm: 38 }], 'PD', 0); // 较最小 50 → +28% → PD
+
+  await loadAll();
+  curId = pidA;
+  renderAll();
+}
+
+/* ================= 保存确认弹框（4 秒倒计时） ================= */
+let confirmTimer = null, confirmResolve = null, confirmLeft = 0;
+function confirmSave(title, msgHtml) {
+  return new Promise(res => {
+    confirmResolve = res;
+    const ov = document.createElement('div');
+    ov.className = 'modal-overlay';
+    ov.innerHTML = `
+      <div class="modal">
+        <h3>${title}</h3>
+        <p class="msg">${msgHtml}</p>
+        <div class="toolbar" style="margin-top:16px">
+          <button class="btn btn-primary" id="cfmOk" disabled>确认（4）</button>
+          <button class="btn btn-ghost" id="cfmCancel">取消</button>
+        </div>
+        <div class="countdown-hint">防止误操作覆盖已有数据，确认按钮将在 4 秒后可用</div>
+      </div>`;
+    document.body.appendChild(ov);
+    const ok = ov.querySelector('#cfmOk'), cancel = ov.querySelector('#cfmCancel');
+    const close = v => {
+      clearInterval(confirmTimer);
+      ov.remove();
+      confirmResolve = null;
+      res(v);
+    };
+    cancel.onclick = () => close(false);
+    ok.onclick = () => { if (!ok.disabled) close(true); };
+    ov.addEventListener('click', e => { if (e.target === ov) close(false); });
+    confirmLeft = 4;
+    ok.disabled = true;
+    ok.textContent = '确认（4）';
+    confirmTimer = setInterval(() => {
+      confirmLeft--;
+      if (confirmLeft <= 0) {
+        clearInterval(confirmTimer);
+        ok.disabled = false;
+        ok.textContent = '确认';
+      } else {
+        ok.textContent = `确认（${confirmLeft}）`;
+      }
+    }, 1000);
+  });
+}
+
+/* ================= 启动 ================= */
+window.__bootErr = null;
+window.addEventListener('error', e => { window.__bootErr = (window.__bootErr || '') + e.message + ' @' + (e.lineno||'') + '\n'; });
+(async function main() {
+  try {
+    db = await openDB();
+    await loadAll();
+  } catch (e) {
+    window.__bootErr = (window.__bootErr || '') + 'BOOT: ' + e.message + '\n' + (e.stack || '');
+  }
+})();
+</script>
+</body>
+</html>
